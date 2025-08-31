@@ -588,6 +588,27 @@ const MultiSelectMenu = ({ label, options, selected, onChange }) => {
   );
 };
 
+const CustomAlert = ({ message, type, onClose }) => {
+  const Icon = type === 'success' ? CheckCircle : XCircle;
+  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+  const borderColor = type === 'success' ? 'border-green-700' : 'border-red-700';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -50 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -50 }}
+      className={`fixed top-5 left-1/2 -translate-x-1/2 z-[100] p-4 rounded-xl shadow-lg flex items-center gap-3 text-white font-semibold border-b-4 ${bgColor} ${borderColor}`}
+    >
+      <Icon className="w-6 h-6" />
+      <p>{message}</p>
+      <button onClick={onClose} className="ml-4 p-1 rounded-full hover:bg-white/20 transition-colors">
+        <XCircle className="w-5 h-5" />
+      </button>
+    </motion.div>
+  );
+};
+
 const ISDATA = () => {
   const [activeTab, setActiveTab] = useState('config');
   const [isLoading, setIsLoading] = useState(false);
@@ -607,6 +628,7 @@ const ISDATA = () => {
     dbUser: 'postgres',
     dbPassword: ''
   });
+  const [customAlert, setCustomAlert] = useState(null); // { message: '', type: 'success' | 'error' }
   const [migrationProgress, setMigrationProgress] = useState(0);
   const [migrationLog, setMigrationLog] = useState([]);
   const [previewData, setPreviewData] = useState([]);
@@ -674,10 +696,11 @@ const ISDATA = () => {
       });
       const data = await response.json();
       setConnectionStatus(prev => ({ ...prev, sheets: data.status }));
-      alert(data.message);
+      setCustomAlert({ message: data.message, type: data.status });
     } catch (error) {
       console.error('Error testing sheets connection:', error);
       setConnectionStatus(prev => ({ ...prev, sheets: 'error' }));
+      setCustomAlert({ message: `Error testing sheets connection: ${error.message}`, type: 'error' });
     }
     setIsLoading(false);
   };
@@ -689,12 +712,13 @@ const ISDATA = () => {
       const response = await fetch('http://127.0.0.1:5000/api/db/schema', { method: 'POST' });
       const data = await response.json();
       if (data.status === 'success') {
-        alert('Schema created successfully!\n\n' + data.logs.join('\n'));
+        setCustomAlert({ message: 'Schema created successfully!\n\n' + data.logs.join('\n'), type: 'success' });
       } else {
-        alert('Schema creation failed: ' + data.message);
+        setCustomAlert({ message: 'Schema creation failed: ' + data.message, type: 'error' });
       }
     } catch (error) {
       console.error('Error creating schema:', error);
+      setCustomAlert({ message: `Error creating schema: ${error.message}`, type: 'error' });
     }
     setIsLoading(false);
   };
@@ -706,12 +730,13 @@ const ISDATA = () => {
       const response = await fetch('http://127.0.0.1:5000/api/db/clear', { method: 'DELETE' });
       const data = await response.json();
       if (data.status === 'success') {
-        alert(data.message);
+        setCustomAlert({ message: data.message, type: 'success' });
       } else {
-        alert('Failed to clear database: ' + data.message);
+        setCustomAlert({ message: 'Failed to clear database: ' + data.message, type: 'error' });
       }
     } catch (error) {
       console.error('Error clearing database:', error);
+      setCustomAlert({ message: `Error clearing database: ${error.message}`, type: 'error' });
     }
     setIsLoading(false);
   };
@@ -1002,6 +1027,16 @@ const ISDATA = () => {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {customAlert && (
+          <CustomAlert
+            message={customAlert.message}
+            type={customAlert.type}
+            onClose={() => setCustomAlert(null)}
+          />
         )}
       </AnimatePresence>
     </div>
