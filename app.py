@@ -12,6 +12,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2 import pool
+import openpyxl
 
 # Load environment variables from .env file
 load_dotenv()
@@ -690,6 +691,298 @@ def test_sheets_connection():
         return jsonify({'status': overall_status, 'message': "\n".join(results)})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/reports/daily', methods=['POST'])
+def get_daily_report():
+    """Generates a comprehensive daily production report with vendor-wise analytics."""
+    config = request.json
+    selected_date = config.get('date')
+    selected_vendor = config.get('vendor', 'all')
+    
+    if not selected_date:
+        return jsonify({'error': 'Date is required'}), 400
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            # Base query conditions
+            date_condition = "date = %s"
+            vendor_condition = "" if selected_vendor == 'all' else " AND vendor = %s"
+            params = [selected_date]
+            if selected_vendor != 'all':
+                params.append(selected_vendor)
+            
+            # Get overall statistics
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(*) as total_received,
+                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 1 END) as total_accepted,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' OR ft_status != 'Accepted' THEN 1 END) as total_rejected
+                    {", vendor" if selected_vendor == 'all' else ""}
+                FROM rings 
+                WHERE {date_condition}{vendor_condition}
+                {f"GROUP BY vendor" if selected_vendor == 'all' else ""}
+            """, tuple(params))
+            
+            overall_stats = cursor.fetchall()
+            
+            if not overall_stats:
+                return jsonify({
+                    'date': selected_date,
+                    'vendor': selected_vendor,
+                    'totalReceived': 0,
+                    'totalAccepted': 0,
+                    'totalRejected': 0,
+                    'yield': 0,
+                    'vqcBreakdown': {'accepted': 0, 'rejected': 0, 'rejectionReasons': []},
+                    'ftBreakdown': {'accepted': 0, 'rejected': 0, 'rejectionReasons': []},
+                    'hourlyData': [],
+                    'vendorBreakdown': []
+                })
+            
+            # Calculate totals
+            total_received = sum(row[0] for row in overall_stats)
+            total_accepted = sum(row[1] for row in overall_stats)
+            total_rejected = sum(row[2] for row in overall_stats)
+            overall_yield = (total_accepted / total_received * 100) if total_received > 0 else 0
+            
+            # Prepare vendor breakdown if 'all' is selected
+            vendor_breakdown_data = []
+            if selected_vendor == 'all':
+                for row in overall_stats:
+                    vendor_name = row[3]  # Vendor is the 4th column when grouped by vendor
+                    vendor_received = row[0]
+                    vendor_accepted = row[1]
+                    vendor_rejected = row[2]
+                    vendor_yield = (vendor_accepted / vendor_received * 100) if vendor_received > 0 else 0
+                    vendor_breakdown_data.append({
+                        'vendor': vendor_name,
+                        'totalReceived': vendor_received,
+                        'totalAccepted': vendor_accepted,
+                        'totalRejected': vendor_rejected,
+                        'yield': round(vendor_yield, 2)
+                    })
+            
+            # Get VQC breakdown
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as vqc_accepted,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as vqc_rejected,
+                    vqc_reason,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as reason_count
+                FROM rings 
+                WHERE {date_condition}{vendor_condition}
+                GROUP BY vqc_reason
+                HAVING COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) > 0
+                ORDER BY reason_count DESC
+            """, tuple(params))
+            
+            vqc_data = cursor.fetchall()
+            # Correctly sum accepted and rejected counts from the grouped data
+            vqc_accepted = sum(row[0] for row in vqc_data) if vqc_data else 0
+            vqc_rejected = sum(row[1] for row in vqc_data) if vqc_data else 0
+            
+            vqc_rejection_reasons = []
+            for row in vqc_data:
+                if row[2] and row[3] > 0:  # vqc_reason exists and count > 0
+                    percentage = (row[3] / vqc_rejected * 100) if vqc_rejected > 0 else 0
+                    vqc_rejection_reasons.append({
+                        'reason': row[2],
+                        'count': row[3],
+                        'percentage': round(percentage, 1)
+                    })
+            
+            # Get FT breakdown
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(CASE WHEN ft_status = 'Accepted' THEN 1 END) as ft_accepted,
+                    COUNT(CASE WHEN ft_status != 'Accepted' THEN 1 END) as ft_rejected,
+                    ft_reason,
+                    COUNT(CASE WHEN ft_status != 'Accepted' THEN 1 END) as reason_count
+                FROM rings 
+                WHERE {date_condition}{vendor_condition}
+                GROUP BY ft_reason
+                HAVING COUNT(CASE WHEN ft_status != 'ACCEPTED' THEN 1 END) > 0
+                ORDER BY reason_count DESC
+            """, tuple(params))
+            
+            ft_data = cursor.fetchall()
+            # Correctly sum accepted and rejected counts from the grouped data
+            ft_accepted = sum(row[0] for row in ft_data) if ft_data else 0
+            ft_rejected = sum(row[1] for row in ft_data) if ft_data else 0
+            
+            ft_rejection_reasons = []
+            for row in ft_data:
+                if row[2] and row[3] > 0:  # ft_reason exists and count > 0
+                    percentage = (row[3] / ft_rejected * 100) if ft_rejected > 0 else 0
+                    ft_rejection_reasons.append({
+                        'reason': row[2],
+                        'count': row[3],
+                        'percentage': round(percentage, 1)
+                    })
+            
+            # Get hourly data (simulated based on created_at timestamp)
+            cursor.execute(f"""
+                SELECT 
+                    EXTRACT(HOUR FROM created_at) as hour,
+                    COUNT(*) as received,
+                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 1 END) as accepted,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' OR ft_status != 'Accepted' THEN 1 END) as rejected
+                FROM rings 
+                WHERE {date_condition}{vendor_condition}
+                GROUP BY EXTRACT(HOUR FROM created_at)
+                ORDER BY hour
+            """, tuple(params))
+            
+            hourly_raw = cursor.fetchall()
+            hourly_data = []
+            for row in hourly_raw:
+                hour = int(row[0]) if row[0] is not None else 0
+                hourly_data.append({
+                    'hour': f"{hour:02d}:00",
+                    'received': row[1],
+                    'accepted': row[2],
+                    'rejected': row[3]
+                })
+            
+            # Get vendor-wise breakdown (if 'all' is selected)
+            vendor_breakdown = vendor_breakdown_data
+            
+            return jsonify({
+                'date': selected_date,
+                'vendor': selected_vendor,
+                'totalReceived': total_received,
+                'totalAccepted': total_accepted,
+                'totalRejected': total_rejected,
+                'yield': round(overall_yield, 2),
+                'vqcBreakdown': {
+                    'accepted': vqc_accepted,
+                    'rejected': vqc_rejected,
+                    'rejectionReasons': vqc_rejection_reasons
+                },
+                'ftBreakdown': {
+                    'accepted': ft_accepted,
+                    'rejected': ft_rejected,
+                    'rejectionReasons': ft_rejection_reasons
+                },
+                'hourlyData': hourly_data,
+                'vendorBreakdown': vendor_breakdown
+            })
+        
+    except (psycopg2.Error, Exception) as e:
+        app.logger.error(f"Error generating daily report: {e}")
+        return jsonify({'error': f'Failed to generate report: {str(e)}'}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+@app.route('/api/reports/export', methods=['POST'])
+def export_daily_report():
+    """Exports daily report data as CSV or Excel."""
+    config = request.json
+    selected_date = config.get('date')
+    selected_vendor = config.get('vendor', 'all')
+    export_format = config.get('format', 'csv')  # 'csv' or 'excel'
+    
+    if not selected_date:
+        return jsonify({'error': 'Date is required'}), 400
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            # Get detailed data for export
+            date_condition = "date = %s"
+            vendor_condition = "" if selected_vendor == 'all' else " AND vendor = %s"
+            params = [selected_date]
+            if selected_vendor != 'all':
+                params.append(selected_vendor)
+            
+            cursor.execute(f"""
+                SELECT 
+                    date,
+                    vendor,
+                    serial_number,
+                    mo_number,
+                    sku,
+                    ring_size,
+                    vqc_status,
+                    vqc_reason,
+                    ft_status,
+                    ft_reason,
+                    CASE 
+                        WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 'Accepted'
+                        ELSE 'Rejected'
+                    END as overall_status,
+                    created_at
+                FROM rings 
+                WHERE {date_condition}{vendor_condition}
+                ORDER BY created_at, vendor, serial_number
+            """, tuple(params))
+            
+            results = cursor.fetchall()
+            
+            if export_format.lower() == 'csv':
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # Write headers
+                headers = [
+                    'Date', 'Vendor', 'Serial Number', 'MO Number', 'SKU', 'Ring Size',
+                    'VQC Status', 'VQC Reason', 'FT Status', 'FT Reason', 
+                    'Overall Status', 'Created At'
+                ]
+                writer.writerow(headers)
+                
+                # Write data
+                for row in results:
+                    writer.writerow(row)
+                
+                output.seek(0)
+                filename = f"daily_report_{selected_date}_{selected_vendor}.csv"
+                
+                return Response(
+                    output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"}
+                )
+            
+            elif export_format.lower() == 'excel':
+                # For Excel export, you'd typically use pandas or openpyxl
+                # This is a simplified version using pandas
+                import pandas as pd
+                
+                df = pd.DataFrame(results, columns=[
+                    'Date', 'Vendor', 'Serial Number', 'MO Number', 'SKU', 'Ring Size',
+                    'VQC Status', 'VQC Reason', 'FT Status', 'FT Reason', 
+                    'Overall Status', 'Created At'
+                ])
+                
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Daily Report', index=False)
+                
+                output.seek(0)
+                filename = f"daily_report_{selected_date}_{selected_vendor}.xlsx"
+                
+                return Response(
+                    output.getvalue(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"}
+                )
+            
+            else:
+                return jsonify({'error': 'Invalid export format'}), 400
+                
+    except (psycopg2.Error, Exception) as e:
+        app.logger.error(f"Error exporting daily report: {e}")
+        return jsonify({'error': f'Failed to export report: {str(e)}'}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
 
 
 if __name__ == '__main__':

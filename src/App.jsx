@@ -20,7 +20,14 @@ import {
   RefreshCw,
   Folder,
   Sun,
-  Moon
+  Moon,
+  BarChart3,
+  TrendingUp,  
+  TrendingDown,
+  Users,
+  AlertTriangle,
+  PieChart,
+  Target
 } from 'lucide-react';
 
 // --- (Animation variants are unchanged) ---
@@ -127,6 +134,605 @@ const SearchTab = ({ searchFilters, setSearchFilters, filterOptions, performSear
     {searchResults.length > 0 && (<motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl"><div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-b border-gray-200 dark:border-gray-600"><h3 className="text-xl font-bold text-gray-800 dark:text-white">Search Results ({searchResults.length} found)</h3></div><div className="overflow-auto max-h-96"><table className="w-full"><thead className="bg-gray-100 dark:bg-gray-700 sticky top-0"><tr>{['serial_number', 'mo_number', 'vendor', 'date', 'vqc_status', 'ft_status'].map((header) => (<th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header.replace(/_/g, ' ')}</th>))}</tr></thead><tbody className="divide-y divide-gray-200 dark:divide-gray-600">{searchResults.map((row, index) => (<motion.tr key={index} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.03 }} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150`}><td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-gray-200">{row.serial_number}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row.mo_number}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row.vendor}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">{row.date}</td><td className="px-6 py-4 whitespace-nowrap"><motion.span initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ delay: index * 0.03 + 0.2 }} className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${ row.vqc_status === 'Pass' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' }`}>{row.vqc_status}</motion.span></td><td className="px-6 py-4 whitespace-nowrap"><motion.span initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ delay: index * 0.03 + 0.3 }} className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${ row.ft_status === 'Pass' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' }`}>{row.ft_status}</motion.span></td></motion.tr>))}</tbody></table></div></motion.div>)}
   </motion.div>
 );
+
+const ReportTab = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedVendor, setSelectedVendor] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [vendors, setVendors] = useState(['all']);
+  const [error, setError] = useState(null);
+
+  // Fetch available vendors on component mount
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:5000/api/search/filters');
+        if (response.ok) {
+          const data = await response.json();
+          setVendors(['all', ...data.vendors]);
+        }
+      } catch (error) {
+        console.error('Error fetching vendors:', error);
+      }
+    };
+    fetchVendors();
+  }, []);
+
+  const fetchDailyReport = async (selectedDate, selectedVendor) => {
+    const response = await fetch('http://127.0.0.1:5000/api/reports/daily', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        date: selectedDate,
+        vendor: selectedVendor
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  };
+
+  const loadReport = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await fetchDailyReport(selectedDate, selectedVendor);
+      setReportData(data);
+    } catch (error) {
+      console.error('Error loading report:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const exportReport = async (format) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/reports/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: selectedDate,
+          vendor: selectedVendor,
+          format: format
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily_report_${selectedDate}_${selectedVendor}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      setError('Failed to export report');
+    }
+  };
+
+  useEffect(() => {
+    if (selectedDate) {
+      loadReport();
+    }
+  }, [selectedDate, selectedVendor]);
+
+  const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
+    <motion.div
+      variants={staggerItem}
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
+          <p className={`text-3xl font-bold ${color}`}>{value}</p>
+          {subtitle && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl ${color.replace('text-', 'bg-').replace('-600', '-100')} dark:${color.replace('text-', 'bg-').replace('-600', '-900/20')}`}>
+          <Icon className={`w-6 h-6 ${color}`} />
+        </div>
+      </div>
+      {trend !== undefined && (
+        <div className="mt-4 flex items-center">
+          {trend > 0 ? (
+            <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+          ) : trend < 0 ? (
+            <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
+          ) : null}
+          <span className={`text-sm font-medium ${trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+            {trend !== 0 ? `${Math.abs(trend)}% vs yesterday` : 'No change'}
+          </span>
+        </div>
+      )}
+    </motion.div>
+  );
+
+  const ReasonCard = ({ title, reasons, totalRejected }) => (
+    <motion.div
+      variants={staggerItem}
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+    >
+      <div className="flex items-center gap-2 mb-6">
+        <AlertTriangle className="w-5 h-5 text-orange-500" />
+        <h4 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h4>
+        <span className="text-sm text-gray-500 dark:text-gray-400">({totalRejected} total)</span>
+      </div>
+      <div className="space-y-4">
+        {reasons.length > 0 ? reasons.map((reason, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+          >
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-gray-700 dark:text-gray-200">
+                  {reason.reason}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                    {reason.count}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    ({reason.percentage}%)
+                  </span>
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                <motion.div
+                  className="bg-gradient-to-r from-orange-400 to-red-500 h-2 rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${reason.percentage}%` }}
+                  transition={{ delay: index * 0.2, duration: 0.8 }}
+                />
+              </div>
+            </div>
+          </motion.div>
+        )) : (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            No rejection reasons found
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  const HourlyChart = ({ data }) => (
+    <motion.div
+      variants={staggerItem}
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+    >
+      <div className="flex items-center gap-2 mb-6">
+        <BarChart3 className="w-5 h-5 text-blue-500" />
+        <h4 className="text-lg font-bold text-gray-800 dark:text-white">Hourly Production</h4>
+      </div>
+      <div className="space-y-3">
+        {data.length > 0 ? data.map((item, index) => {
+          const yieldRate = item.received > 0 ? ((item.accepted / item.received) * 100).toFixed(1) : 0;
+          return (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+            >
+              <div className="w-12 text-sm font-medium text-gray-600 dark:text-gray-400">
+                {item.hour}
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500 dark:text-gray-400">Received: {item.received}</span>
+                  <span className="text-green-600 dark:text-green-400">Accepted: {item.accepted}</span>
+                  <span className="text-red-600 dark:text-red-400">Rejected: {item.rejected}</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">Yield: {yieldRate}%</span>
+                </div>
+                <div className="relative w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                  <motion.div
+                    className="bg-green-500 h-2 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(item.accepted / item.received) * 100}%` }}
+                    transition={{ delay: index * 0.1, duration: 0.6 }}
+                  />
+                  <motion.div
+                    className="bg-red-500 h-2 rounded-r-full absolute top-0 right-0"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(item.rejected / item.received) * 100}%` }}
+                    transition={{ delay: index * 0.1 + 0.3, duration: 0.6 }}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          );
+        }) : (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            No hourly data available
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+
+  const VendorBreakdown = ({ vendors }) => (
+    <motion.div
+      variants={staggerItem}
+      className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+    >
+      <div className="flex items-center gap-2 mb-6">
+        <Users className="w-5 h-5 text-purple-500" />
+        <h4 className="text-lg font-bold text-gray-800 dark:text-white">Vendor-wise Breakdown</h4>
+      </div>
+      <div className="space-y-4">
+        {vendors.map((vendor, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h5 className="font-semibold text-gray-800 dark:text-white">{vendor.vendor}</h5>
+              <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                {vendor.yield}%
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500 dark:text-gray-400">Received</span>
+                <p className="font-semibold">{vendor.totalReceived}</p>
+              </div>
+              <div>
+                <span className="text-green-600 dark:text-green-400">Accepted</span>
+                <p className="font-semibold">{vendor.totalAccepted}</p>
+              </div>
+              <div>
+                <span className="text-red-600 dark:text-red-400">Rejected</span>
+                <p className="font-semibold">{vendor.totalRejected}</p>
+              </div>
+            </div>
+            <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+              <motion.div
+                className="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${vendor.yield}%` }}
+                transition={{ delay: index * 0.2, duration: 0.8 }}
+              />
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+
+  if (error) {
+    return (
+      <motion.div {...fadeInUp} className="space-y-6">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-2xl p-6">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-6 h-6 text-red-500" />
+            <div>
+              <h3 className="text-lg font-semibold text-red-800 dark:text-red-400">
+                Error Loading Report
+              </h3>
+              <p className="text-red-600 dark:text-red-300 mt-1">{error}</p>
+            </div>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={loadReport}
+            className="mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors duration-200"
+          >
+            Retry
+          </motion.button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div {...fadeInUp} className="space-y-6">
+      {/* Header Section */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200/50 dark:border-blue-700/50">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-500 rounded-lg">
+              <FileText className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Daily Production Report</h2>
+              <p className="text-gray-600 dark:text-gray-400">Comprehensive daily analytics and yield metrics</p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Select Date
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-600 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 transition-all duration-200"
+                />
+                <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Select Vendor
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedVendor}
+                  onChange={(e) => setSelectedVendor(e.target.value)}
+                  className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-600 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 transition-all duration-200 appearance-none"
+                >
+                  {vendors.map((vendor) => (
+                    <option key={vendor} value={vendor}>
+                      {vendor === 'all' ? 'All Vendors' : vendor}
+                    </option>
+                  ))}
+                </select>
+                <Users className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+              </div>
+            </div>
+            
+            <div className="flex items-end">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={loadReport}
+                disabled={isLoading}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLoading ? (
+                  <Loader className="w-5 h-5 animate-spin" />
+                ) : (
+                  <BarChart3 className="w-5 h-5" />
+                )}
+                Generate Report
+              </motion.button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {isLoading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center py-16"
+        >
+          <div className="text-center">
+            <Loader className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+              Loading Report Data...
+            </p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Report Content */}
+      {reportData && !isLoading && (
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="space-y-6"
+        >
+          {/* Summary Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard
+              title="Total Received"
+              value={reportData.totalReceived.toLocaleString()}
+              icon={Target}
+              color="text-blue-600"
+              subtitle="rings processed"
+              trend={reportData.trends?.received}
+            />
+            <StatCard
+              title="Total Accepted"
+              value={reportData.totalAccepted.toLocaleString()}
+              icon={CheckCircle}
+              color="text-green-600"
+              subtitle="quality passed"
+              trend={reportData.trends?.accepted}
+            />
+            <StatCard
+              title="Total Rejected"
+              value={reportData.totalRejected.toLocaleString()}
+              icon={XCircle}
+              color="text-red-600"
+              subtitle="quality failed"
+              trend={reportData.trends?.rejected}
+            />
+            <StatCard
+              title="Overall Yield"
+              value={`${reportData.yield}%`}
+              icon={TrendingUp}
+              color="text-purple-600"
+              subtitle="acceptance rate"
+              trend={reportData.trends?.yield}
+            />
+          </div>
+
+          {/* Vendor Breakdown (only show when 'all' is selected) */}
+          {selectedVendor === 'all' && reportData.vendorBreakdown && reportData.vendorBreakdown.length > 0 && (
+            <VendorBreakdown vendors={reportData.vendorBreakdown} />
+          )}
+
+          {/* Detailed Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ReasonCard
+              title="VQC Rejection Reasons"
+              reasons={reportData.vqcBreakdown.rejectionReasons}
+              totalRejected={reportData.vqcBreakdown.rejected}
+            />
+            <ReasonCard
+              title="FT Rejection Reasons"
+              reasons={reportData.ftBreakdown.rejectionReasons}
+              totalRejected={reportData.ftBreakdown.rejected}
+            />
+          </div>
+
+          {/* Hourly Production Chart */}
+          {reportData.hourlyData && reportData.hourlyData.length > 0 && (
+            <HourlyChart data={reportData.hourlyData} />
+          )}
+
+          {/* Export Section */}
+          <motion.div
+            variants={staggerItem}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-2">
+                  Export Report
+                </h4>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Download detailed report data for {selectedDate} - {selectedVendor === 'all' ? 'All Vendors' : selectedVendor}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => exportReport('csv')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => exportReport('excel')}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Excel
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Summary Report Section */}
+          <motion.div
+            variants={staggerItem}
+            className="bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-800/50 dark:to-blue-900/20 rounded-2xl p-8 border border-gray-200/50 dark:border-gray-700/50"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-gray-600 rounded-lg">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="text-xl font-bold text-gray-800 dark:text-white">Report Summary</h4>
+            </div>
+            
+            <div className="prose dark:prose-invert max-w-none">
+              <div className="bg-white/70 dark:bg-gray-800/70 rounded-xl p-6 backdrop-blur-sm">
+                <h5 className="text-lg font-semibold mb-4">Daily Production Analysis - {selectedDate}</h5>
+                <div className="space-y-3 text-gray-700 dark:text-gray-200">
+                  <p>
+                    <span className="font-semibold">Production Overview:</span> On {selectedDate}, 
+                    {selectedVendor === 'all' ? ' across all vendors,' : ` for ${selectedVendor},`} a total of{' '}
+                    <span className="font-bold text-blue-600">{reportData.totalReceived}</span> rings were received for processing.
+                  </p>
+                  
+                  <p>
+                    <span className="font-semibold">Quality Results:</span> Out of the total received,{' '}
+                    <span className="font-bold text-green-600">{reportData.totalAccepted}</span> rings passed quality checks
+                    and <span className="font-bold text-red-600">{reportData.totalRejected}</span> rings were rejected.
+                  </p>
+                  
+                  <p>
+                    <span className="font-semibold">Overall Yield:</span> The day achieved a yield of{' '}
+                    <span className="font-bold text-purple-600">{reportData.yield}%</span>, indicating{' '}
+                    {reportData.yield >= 85 ? 'excellent' : reportData.yield >= 75 ? 'good' : reportData.yield >= 65 ? 'acceptable' : 'below target'} performance.
+                  </p>
+                  
+                  {reportData.vqcBreakdown.rejectionReasons.length > 0 && (
+                    <p>
+                      <span className="font-semibold">Primary VQC Issues:</span> The main quality concerns were{' '}
+                      {reportData.vqcBreakdown.rejectionReasons.slice(0, 3).map((reason, index) => (
+                        <span key={index}>
+                          {reason.reason} ({reason.count} rings)
+                          {index < Math.min(2, reportData.vqcBreakdown.rejectionReasons.length - 1) ? ', ' : ''}
+                        </span>
+                      )).reduce((prev, curr, index) => index === 0 ? [curr] : [...prev, index === reportData.vqcBreakdown.rejectionReasons.slice(0, 3).length - 1 ? ' and ' : ', ', curr], [])}.
+                    </p>
+                  )}
+                  
+                  {reportData.ftBreakdown.rejectionReasons.length > 0 && (
+                    <p>
+                      <span className="font-semibold">Functional Test Issues:</span> FT rejections were primarily due to{' '}
+                      {reportData.ftBreakdown.rejectionReasons.slice(0, 2).map((reason, index) => (
+                        <span key={index}>
+                          {reason.reason} ({reason.count} rings)
+                          {index < Math.min(1, reportData.ftBreakdown.rejectionReasons.length - 1) ? ' and ' : ''}
+                        </span>
+                      ))}.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* No Data State */}
+      {!reportData && !isLoading && !error && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-2xl"
+        >
+          <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-2">
+            No Report Data Available
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            No data found for {selectedDate} - {selectedVendor === 'all' ? 'All Vendors' : selectedVendor}
+          </p>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={loadReport}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200"
+          >
+            Retry Report Generation
+          </motion.button>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+};
+
 const MultiSelectMenu = ({ label, options, selected, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const handleSelect = (option) => { const newSelected = selected.includes(option) ? selected.filter(item => item !== option) : [...selected, option]; onChange(newSelected); };
@@ -387,13 +993,20 @@ const ISDATA = () => {
     setIsLoading(false);
   };
 
-  const tabs = [ { id: 'config', label: 'Configuration', icon: Settings }, { id: 'preview', label: 'Data Preview', icon: Eye }, { id: 'migration', label: 'Migration', icon: Upload }, { id: 'search', label: 'Ring Search', icon: Search } ];
+  const tabs = [ 
+    { id: 'config', label: 'Configuration', icon: Settings }, 
+    { id: 'preview', label: 'Data Preview', icon: Eye }, 
+    { id: 'migration', label: 'Migration', icon: Upload },
+    { id: 'search', label: 'Ring Search', icon: Search },
+    { id: 'reports', label: 'Daily Reports', icon: BarChart3 }  
+  ];
   const renderTabContent = () => {
     switch (activeTab) {
       case 'config': return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
       case 'preview': return <PreviewTab previewData={previewData} isLoading={isLoading} loadPreviewData={loadPreviewData} />;
       case 'migration': return <MigrationTab migrationProgress={migrationProgress} migrationLog={migrationLog} startMigration={startMigration} />;
       case 'search': return <SearchTab searchFilters={searchFilters} setSearchFilters={setSearchFilters} filterOptions={filterOptions} performSearch={performSearch} isLoading={isLoading} searchResults={searchResults} exportCsv={exportCsv} clearSearchFilters={clearSearchFilters} />;
+      case 'reports':return <ReportTab />;
       default: return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
     }
   };
