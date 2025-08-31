@@ -1,127 +1,617 @@
+import csv
 import os
 import psycopg2
-from flask import Flask, jsonify, request
+import io
+import time
+import threading
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from dotenv import load_dotenv
+import pandas as pd
+import gspread
+from google.oauth2.service_account import Credentials
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2 import pool
 
+# Load environment variables from .env file
 load_dotenv()
 
+# --- Database Connection Pool ---
+db_pool = None
+
+def init_db_pool():
+    """Initializes the database connection pool."""
+    global db_pool
+    if db_pool:
+        db_pool.closeall()
+    try:
+        db_pool = pool.ThreadedConnectionPool(
+            minconn=1,
+            maxconn=10,
+            host=os.getenv('DB_HOST'),
+            port=os.getenv('DB_PORT'),
+            dbname=os.getenv('DB_NAME'),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD')
+        )
+        print("Database connection pool initialized successfully.")
+        return True
+    except psycopg2.Error as e:
+        print(f"Error initializing database pool: {e}")
+        db_pool = None
+        return False
+
+def get_db_connection():
+    """Gets a connection from the pool."""
+    if not db_pool:
+        if not init_db_pool():
+            raise ConnectionError("Database connection pool is not available.")
+    return db_pool.getconn()
+
+def return_db_connection(conn):
+    """Returns a connection to the pool."""
+    if db_pool:
+        db_pool.putconn(conn)
+
+# --- Flask App Initialization ---
 app = Flask(__name__)
 CORS(app)
 
-def get_db_connection():
-    conn = psycopg2.connect(
-        host=os.getenv('DB_HOST'),
-        port=os.getenv('DB_PORT'),
-        dbname=os.getenv('DB_NAME'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD')
-    )
-    return conn
+# --- Error Handling ---
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Generic error handler."""
+    app.logger.error(f"An error occurred: {e}", exc_info=True)
+    return jsonify(error=str(e)), 500
+
+# --- API Endpoints ---
+
+@app.route('/api/db/test', methods=['POST'])
+def test_db_connection():
+    """Tests the database connection."""
+    if init_db_pool():
+        return jsonify(status='success', message='Database connection pool initialized successfully!')
+    else:
+        return jsonify(status='error', message='Failed to initialize database connection pool.'), 500
+
+@app.route('/api/db/schema', methods=['POST'])
+def create_schema_endpoint():
+    """Endpoint to create the database schema."""
+    conn = None
+    log = []
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            log.append("Dropping existing schema objects if they exist...")
+            cursor.execute("DROP TABLE IF EXISTS rings;")
+            cursor.execute("DROP FUNCTION IF EXISTS update_rings_tsvector_trigger CASCADE;")
+
+            log.append("Creating the 'rings' table and base indexes...")
+            create_table_sql = """
+            CREATE TABLE rings (
+                id SERIAL PRIMARY KEY, date DATE, mo_number VARCHAR(50), vendor VARCHAR(50),
+                serial_number VARCHAR(100) UNIQUE, ring_size VARCHAR(100), sku VARCHAR(50),
+                vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT,
+                reason_tsvector TSVECTOR, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX idx_serial_number ON rings(serial_number);
+            CREATE INDEX idx_vendor ON rings(vendor);
+            CREATE INDEX idx_date_desc ON rings(date DESC);
+            """
+            cursor.execute(create_table_sql)
+
+            log.append("Adding optimized composite and full-text search indexes...")
+            optimized_indexes_sql = """
+            CREATE INDEX idx_rings_composite ON rings(vendor, vqc_status, ft_status);
+            CREATE INDEX idx_rings_text_search ON rings USING GIN(reason_tsvector);
+            """
+            cursor.execute(optimized_indexes_sql)
+
+            log.append("Creating trigger function for automatic full-text search indexing...")
+            tsvector_trigger_sql = """
+            CREATE OR REPLACE FUNCTION update_rings_tsvector_trigger() RETURNS trigger AS $$
+            BEGIN
+                NEW.reason_tsvector :=
+                    to_tsvector('english', COALESCE(NEW.vqc_reason, '') || ' ' || COALESCE(NEW.ft_reason, ''));
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+
+            CREATE TRIGGER tsvectorupdate BEFORE INSERT OR UPDATE
+            ON rings FOR EACH ROW EXECUTE PROCEDURE update_rings_tsvector_trigger();
+            """
+            cursor.execute(tsvector_trigger_sql)
+
+        conn.commit()
+        log.append("Database schema, optimized indexes, and triggers created successfully.")
+        return jsonify(status="success", logs=log)
+    except psycopg2.Error as db_err:
+        if conn: conn.rollback()
+        app.logger.error(f"Database error during schema creation: {db_err}")
+        return jsonify(status="error", message=f"Database error during schema creation: {db_err}"), 500
+    finally:
+        if conn: return_db_connection(conn)
+
+
+@app.route('/api/db/clear', methods=['DELETE'])
+def clear_database_endpoint():
+    """Endpoint to clear the 'rings' table."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("TRUNCATE TABLE rings RESTART IDENTITY")
+        conn.commit()
+        return jsonify(status="success", message="Database 'rings' table has been cleared.")
+    except (psycopg2.Error, Exception) as e:
+        if conn: conn.rollback()
+        app.logger.error(f"Database clearing failed: {e}")
+        return jsonify(status="error", message=f"Database clearing failed: {e}"), 500
+    finally:
+        if conn: return_db_connection(conn)
+
 
 @app.route('/api/data', methods=['GET'])
 def get_data():
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute('SELECT * FROM your_table_name;')
-    data = cur.fetchall()
+    cur.execute('SELECT * FROM rings;') # Corrected table name
+    
+    # Fetch column names from cursor description
+    colnames = [desc[0] for desc in cur.description]
+    
+    # Fetch all rows and convert to list of dictionaries
+    data = [dict(zip(colnames, row)) for row in cur.fetchall()]
+    
     cur.close()
     conn.close()
     return jsonify(data)
 
 
+# --- Helper Functions for Data Processing (from data_handler.py) ---
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
+def _load_sheet_data(sheet_type, config, gc, log_callback):
+    try:
+        if sheet_type == 'step7':
+            sheet = gc.open_by_url(config['vendorDataUrl'])
+            ws = sheet.worksheet('Working') # Assuming worksheet name
+            log_callback(f"Loading {sheet_type} data...")
+            all_values = ws.get_all_values()
+            if not all_values: return 'step7', []
+            headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
+            data = [dict(zip(headers, row)) for row in all_values[1:]]
+            log_callback(f"Loaded {len(data)} records from {sheet_type}")
+            return 'step7', data
+        
+        elif sheet_type == 'vqc':
+            vqc_data = {}
+            vqc_sheet = gc.open_by_url(config['vqcDataUrl'])
+            log_callback("Loading VQC data...")
+            # Assuming worksheet names are the vendor names
+            for vendor in ['IHC', '3DE TECH', 'MAKENICA']:
+                try:
+                    ws = vqc_sheet.worksheet(vendor)
+                    all_values = ws.get_all_values()
+                    if all_values:
+                        headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
+                        vqc_data[vendor] = [dict(zip(headers, row)) for row in all_values[1:]]
+                        log_callback(f"Loaded {len(vqc_data[vendor])} VQC records for {vendor}")
+                except Exception as e:
+                    log_callback(f"Warning: Could not load VQC sheet for '{vendor}': {e}")
+            return 'vqc', vqc_data
+        
+        elif sheet_type == 'ft':
+            sheet = gc.open_by_url(config['ftDataUrl'])
+            ws = sheet.worksheet('Working') # Assuming worksheet name
+            log_callback(f"Loading {sheet_type} data...")
+            all_values = ws.get_all_values()
+            if not all_values: return 'ft', []
+            headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
+            data = [dict(zip(headers, row)) for row in all_values[1:]]
+            log_callback(f"Loaded {len(data)} FT records")
+            return 'ft', data
 
+    except Exception as e:
+        log_callback(f"ERROR loading {sheet_type} data: {e}")
+        if sheet_type == 'vqc': return 'vqc', {}
+        return sheet_type, []
 
+def _merge_ring_data_fast(step7_data, vqc_data, ft_data, log_callback):
+    if not step7_data: return []
 
+    def find_column(df, patterns):
+        if not isinstance(patterns, list): patterns = [patterns]
+        for pattern in patterns:
+            for col in df.columns:
+                if pattern.lower() == str(col).lower().strip():
+                    return col
+        return None
 
-import time
+    log_callback("Reshaping main vendor data...")
+    df_step7 = pd.DataFrame(step7_data)
+    vendor_mappings = {
+        '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
+        'IHC': {'serial': 'IHC', 'mo': 'IHC MO', 'sku': 'IHC SKU', 'size': 'IHC SIZE'},
+        'MAKENICA': {'serial': 'MAKENICA', 'mo': 'MK MO', 'sku': 'MAKENICA SKU', 'size': 'MAKENICA SIZE'}
+    }
+    all_vendor_dfs = []
+    date_col = find_column(df_step7, ['logged_timestamp', 'timestamp', 'date'])
+    for vendor, patterns in vendor_mappings.items():
+        serial_col = find_column(df_step7, patterns['serial'])
+        if not serial_col: continue
+        mo_col, sku_col, size_col = find_column(df_step7, patterns['mo']), find_column(df_step7, patterns['sku']), find_column(df_step7, patterns['size'])
+        cols_to_keep = {date_col: 'date', serial_col: 'serial_number', mo_col: 'mo_number', sku_col: 'sku', size_col: 'ring_size'}
+        cols_to_keep = {k: v for k, v in cols_to_keep.items() if k is not None and k in df_step7.columns}
+        vendor_df = df_step7[list(cols_to_keep.keys())].copy()
+        vendor_df.rename(columns=cols_to_keep, inplace=True)
+        vendor_df['vendor'] = vendor
+        if 'serial_number' in vendor_df.columns:
+            vendor_df.dropna(subset=['serial_number'], inplace=True)
+            vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip()
+            all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
+        else:
+            log_callback(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
+    
+    if not all_vendor_dfs: raise ValueError("Could not process any vendor data from Step 7.")
+    df_main = pd.concat(all_vendor_dfs, ignore_index=True)
+    log_callback(f"Reshaped into {len(df_main)} total records.")
 
-@app.route('/api/migrate')
+    log_callback("Preparing VQC and FT data...")
+    all_vqc_dfs = [pd.DataFrame(data).assign(vendor=vendor) for vendor, data in vqc_data.items() if data]
+    if all_vqc_dfs:
+        df_vqc = pd.concat(all_vqc_dfs, ignore_index=True)
+        rename_map = {find_column(df_vqc, ['uid', 'serial']): 'serial_number', find_column(df_vqc, ['status', 'result']): 'vqc_status', find_column(df_vqc, ['reason', 'comments']): 'vqc_reason'}
+        df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
+        if 'serial_number' in df_vqc.columns:
+            df_vqc.dropna(subset=['serial_number'], inplace=True)
+            df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip()
+            df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason'] if col in df_vqc.columns]]
+    else: df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason'])
+    
+    df_ft = pd.DataFrame(ft_data)
+    if not df_ft.empty:
+        rename_map = {find_column(df_ft, ['uid', 'serial']): 'serial_number', find_column(df_ft, ['status', 'test result']): 'ft_status', find_column(df_ft, ['reason', 'comments']): 'ft_reason'}
+        df_ft.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
+        if 'serial_number' in df_ft.columns:
+            df_ft.dropna(subset=['serial_number'], inplace=True)
+            df_ft['serial_number'] = df_ft['serial_number'].astype(str).str.strip()
+            df_ft = df_ft[[col for col in ['serial_number', 'ft_status', 'ft_reason'] if col in df_ft.columns]]
+    else: df_ft = pd.DataFrame(columns=['serial_number', 'ft_status', 'ft_reason'])
+
+    log_callback("Performing merge...")
+    merged_df = pd.merge(df_main, df_vqc, on=['serial_number', 'vendor'], how='left')
+    if 'serial_number' in merged_df.columns and 'serial_number' in df_ft.columns:
+        merged_df = pd.merge(merged_df, df_ft, on='serial_number', how='left')
+    
+    merged_df.fillna('', inplace=True)
+    
+    initial_count = len(merged_df)
+    log_callback(f"Successfully merged {initial_count} records. Checking for duplicates...")
+    merged_df.drop_duplicates(subset=['serial_number'], keep='last', inplace=True)
+    final_count = len(merged_df)
+    duplicates_found = initial_count - final_count
+    
+    if duplicates_found > 0:
+        log_callback(f"Removed {duplicates_found} duplicate serial number(s). Final record count: {final_count}.")
+    else:
+        log_callback("No duplicate serial numbers found.")
+
+    return merged_df.to_dict('records')
+
+@app.route('/api/migrate', methods=['POST'])
 def migrate():
+    config = request.json
     def generate():
-        logs = [
-            'Starting migration process...', 
-            'Creating temporary table rings_temp...', 
-            'Preparing data buffer...', 
-            'Bulk copying data to temp table...', 
-            'Updating existing records...', 
-            'Inserting new records...', 
-            'Cleaning up temporary table...', 
-            'Migration completed successfully!'
-        ]
-        for log in logs:
-            yield f"data: {log}\n\n"
-            time.sleep(0.8)
+        def log_callback(message):
+            yield f"data: {message}\n\n"
+
+        # 1. Connect to Google API
+        try:
+            yield from log_callback("Connecting to Google API...")
+            scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+            creds = Credentials.from_service_account_file(config.get('serviceAccountPath'), scopes=scopes)
+            gc = gspread.authorize(creds)
+            yield from log_callback("Google API connection successful.")
+        except Exception as e:
+            yield from log_callback(f"ERROR: Google API connection failed: {e}")
+            return
+
+        # 2. Load and Merge Data
+        merged_data = []
+        try:
+            yield from log_callback("Starting parallel data loading from Google Sheets...")
+            step7_data, vqc_data, ft_data = [], {}, []
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                futures = []
+                if config.get('vendorDataUrl'): futures.append(executor.submit(_load_sheet_data, 'step7', config, gc, lambda msg: app.logger.info(msg)))
+                if config.get('vqcDataUrl'): futures.append(executor.submit(_load_sheet_data, 'vqc', config, gc, lambda msg: app.logger.info(msg)))
+                if config.get('ftDataUrl'): futures.append(executor.submit(_load_sheet_data, 'ft', config, gc, lambda msg: app.logger.info(msg)))
+
+                for future in as_completed(futures):
+                    try:
+                        sheet_type, data = future.result()
+                        if sheet_type == 'step7': step7_data = data
+                        elif sheet_type == 'vqc': vqc_data = data
+                        elif sheet_type == 'ft': ft_data = data
+                    except Exception as e:
+                        yield from log_callback(f"A task failed during parallel sheet loading: {e}")
+            
+            yield from log_callback("Parallel data loading complete. Starting merge...")
+            merged_data = _merge_ring_data_fast(step7_data, vqc_data, ft_data, lambda msg: app.logger.info(msg))
+            yield from log_callback(f"Successfully loaded and merged {len(merged_data)} records.")
+
+        except Exception as e:
+            yield from log_callback(f"ERROR: Failed to load or merge data: {e}")
+            return
+
+        if not merged_data:
+            yield from log_callback("No data to migrate.")
+            return
+
+        # 3. Migrate Data
+        conn = None
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cursor:
+                yield from log_callback("Creating temporary table for bulk data loading...")
+                cursor.execute("""
+                    CREATE TEMP TABLE rings_temp (
+                        date DATE, mo_number VARCHAR(50), vendor VARCHAR(50), serial_number VARCHAR(100) UNIQUE,
+                        ring_size VARCHAR(100), sku VARCHAR(50), vqc_status VARCHAR(100),
+                        vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT
+                    ) ON COMMIT DROP;
+                """)
+
+                yield from log_callback("Preparing data for bulk COPY...")
+                string_buffer = io.StringIO()
+                cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
+                null_identifier = '\\N'
+
+                for record in merged_data:
+                    row_data = []
+                    for col in cols:
+                        value = record.get(col)
+                        is_missing = pd.isna(value) or str(value).strip() == ''
+
+                        if col == 'date':
+                            if is_missing:
+                                clean_value = null_identifier
+                            else:
+                                try:
+                                    clean_value = pd.to_datetime(value).date().isoformat()
+                                except (ValueError, TypeError):
+                                    clean_value = null_identifier
+                        else:
+                            if is_missing:
+                                clean_value = ''
+                            else:
+                                clean_value = str(value).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
+                        
+                        row_data.append(clean_value)
+                    
+                    string_buffer.write('\t'.join(row_data) + '\n')
+                
+                string_buffer.seek(0)
+                
+                yield from log_callback(f"Copying {len(merged_data)} records to DB...")
+                cursor.copy_expert(f"COPY rings_temp({','.join(cols)}) FROM STDIN WITH (FORMAT text, NULL '{null_identifier}')", string_buffer)
+
+                yield from log_callback("Updating existing records...")
+                update_sql = """
+                UPDATE rings r SET
+                    date = t.date, mo_number = t.mo_number, vendor = t.vendor, ring_size = t.ring_size,
+                    sku = t.sku, vqc_status = t.vqc_status, vqc_reason = t.vqc_reason,
+                    ft_status = t.ft_status, ft_reason = t.ft_reason, updated_at = CURRENT_TIMESTAMP
+                FROM rings_temp t
+                WHERE r.serial_number = t.serial_number;
+                """
+                cursor.execute(update_sql)
+                yield from log_callback(f"{cursor.rowcount} existing records updated.")
+
+                yield from log_callback("Inserting new records...")
+                insert_sql = """
+                INSERT INTO rings (date, mo_number, vendor, serial_number, ring_size, sku, vqc_status, vqc_reason, ft_status, ft_reason)
+                SELECT t.date, t.mo_number, t.vendor, t.serial_number, t.ring_size, t.sku, t.vqc_status, t.vqc_reason, t.ft_status, t.ft_reason
+                FROM rings_temp t
+                LEFT JOIN rings r ON t.serial_number = r.serial_number
+                WHERE r.serial_number IS NULL;
+                """
+                cursor.execute(insert_sql)
+                yield from log_callback(f"{cursor.rowcount} new records inserted.")
+
+            conn.commit()
+            yield from log_callback("Migration completed successfully!")
+
+        except (psycopg2.Error, Exception) as e:
+            if conn: conn.rollback()
+            yield from log_callback(f"ERROR: High-speed migration failed: {e}")
+        finally:
+            if conn: return_db_connection(conn)
+
     return Response(generate(), mimetype='text/event-stream')
+
+
 
 @app.route('/api/search', methods=['POST'])
 def search():
     filters = request.json
-    query = "SELECT * FROM your_table_name WHERE 1=1"
+    query = "SELECT date, vendor, mo_number, serial_number, vqc_status, ft_status, vqc_reason, ft_reason FROM rings WHERE 1=1"
     params = []
 
+    # Use UPPER for case-insensitive comparison
     if filters.get('serialNumbers'):
-        serial_numbers = [s.strip() for s in filters['serialNumbers'].split(',')]
-        query += " AND serial_number = ANY(%s)"
-        params.append(serial_numbers)
+        serial_numbers = [s.strip().upper() for s in filters['serialNumbers'].split(',') if s.strip()]
+        if serial_numbers:
+            query += " AND UPPER(serial_number) = ANY(%s)"
+            params.append(serial_numbers)
+
     if filters.get('moNumbers'):
-        mo_numbers = [s.strip() for s in filters['moNumbers'].split(',')]
-        query += " AND mo_number = ANY(%s)"
-        params.append(mo_numbers)
+        mo_numbers = [s.strip().upper() for s in filters['moNumbers'].split(',') if s.strip()]
+        if mo_numbers:
+            query += " AND UPPER(mo_number) = ANY(%s)"
+            params.append(mo_numbers)
+
     if filters.get('dateFrom'):
         query += " AND date >= %s"
         params.append(filters['dateFrom'])
     if filters.get('dateTo'):
         query += " AND date <= %s"
         params.append(filters['dateTo'])
+    
+    # Handle multi-select filters
     if filters.get('vendor'):
-        query += " AND vendor = %s"
+        query += " AND vendor = ANY(%s)"
         params.append(filters['vendor'])
     if filters.get('vqcStatus'):
-        query += " AND vqc_status = %s"
+        query += " AND vqc_status = ANY(%s)"
         params.append(filters['vqcStatus'])
     if filters.get('ftStatus'):
-        query += " AND ft_status = %s"
+        query += " AND ft_status = ANY(%s)"
         params.append(filters['ftStatus'])
+    if filters.get('rejectionReason'):
+        query += " AND (vqc_reason = ANY(%s) OR ft_reason = ANY(%s))"
+        params.extend([filters['rejectionReason'], filters['rejectionReason']])
+
+    query += " ORDER BY date DESC, id DESC LIMIT 5000;"
 
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(query, tuple(params))
-    data = cur.fetchall()
+    
+    colnames = [desc[0] for desc in cur.description]
+    data = [dict(zip(colnames, row)) for row in cur.fetchall()]
+    
     cur.close()
-    conn.close()
+    return_db_connection(conn)
 
     return jsonify(data)
 
-
-@app.route('/api/test_sheets_connection', methods=['GET'])
-def test_sheets_connection():
-    try:
-        creds = service_account.Credentials.from_service_account_file(
-            os.getenv('GOOGLE_SHEETS_CREDENTIALS'),
-            scopes=['https://www.googleapis.com/auth/spreadsheets.readonly']
-        )
-        service = build('sheets', 'v4', credentials=creds)
-        # You can replace this with a real spreadsheet ID to test
-        spreadsheet_id = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms' # This is a public sample spreadsheet
-        sheet_metadata = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
-        return jsonify({'status': 'success', 'message': f'Successfully connected to spreadsheet: {sheet_metadata["properties"]["title"]}'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
-
-
-@app.route('/api/test_db_connection', methods=['GET'])
-def test_db_connection():
+@app.route('/api/search/filters', methods=['GET'])
+def get_search_filters():
+    """Gets distinct values for search filters from the database."""
+    conn = None
+    options = {}
     try:
         conn = get_db_connection()
-        conn.close()
-        return jsonify({'status': 'success', 'message': 'Database connection successful!'})
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT vendor FROM rings WHERE vendor IS NOT NULL AND vendor != '' ORDER BY vendor;")
+            options['vendors'] = [row[0] for row in cursor.fetchall()]
+            cursor.execute("SELECT DISTINCT vqc_status FROM rings WHERE vqc_status IS NOT NULL AND vqc_status != '' ORDER BY vqc_status;")
+            options['vqc_statuses'] = [row[0] for row in cursor.fetchall()]
+            cursor.execute("SELECT DISTINCT ft_status FROM rings WHERE ft_status IS NOT NULL AND ft_status != '' ORDER BY ft_status;")
+            options['ft_statuses'] = [row[0] for row in cursor.fetchall()]
+            reason_query = "SELECT DISTINCT reason FROM (SELECT vqc_reason AS reason FROM rings WHERE vqc_reason IS NOT NULL AND vqc_reason != '' UNION ALL SELECT ft_reason FROM rings WHERE ft_reason IS NOT NULL AND ft_reason != '') AS reasons ORDER BY 1;"
+            cursor.execute(reason_query)
+            options['reasons'] = [row[0] for row in cursor.fetchall()]
+        return jsonify(options)
+    except psycopg2.Error as db_err:
+        app.logger.error(f"Database error loading filters: {db_err}")
+        return jsonify(status="error", message=f"Database error loading filters: {db_err}"), 500
+    finally:
+        if conn: return_db_connection(conn)
+
+@app.route('/api/search/export', methods=['POST'])
+def export_search_results():
+    """Exports search results to a CSV file."""
+    filters = request.json
+    conn = None
+    try:
+        base_query = "SELECT date, vendor, mo_number, serial_number, vqc_status, ft_status, vqc_reason, ft_reason FROM rings"
+        where_clauses, params = [], []
+
+        if filters.get('serialNumbers'):
+            serial_numbers = [s.strip().upper() for s in filters['serialNumbers'].split(',') if s.strip()]
+            if serial_numbers:
+                where_clauses.append("UPPER(serial_number) = ANY(%s)")
+                params.append(serial_numbers)
+        if filters.get('moNumbers'):
+            mo_numbers = [s.strip().upper() for s in filters['moNumbers'].split(',') if s.strip()]
+            if mo_numbers:
+                where_clauses.append("UPPER(mo_number) = ANY(%s)")
+                params.append(mo_numbers)
+        if filters.get('dateFrom'):
+            where_clauses.append("date >= %s")
+            params.append(filters['dateFrom'])
+        if filters.get('dateTo'):
+            where_clauses.append("date <= %s")
+            params.append(filters['dateTo'])
+        if filters.get('vendor'):
+            where_clauses.append("vendor = ANY(%s)")
+            params.append(filters['vendor'])
+        if filters.get('vqcStatus'):
+            where_clauses.append("vqc_status = ANY(%s)")
+            params.append(filters['vqcStatus'])
+        if filters.get('ftStatus'):
+            where_clauses.append("ft_status = ANY(%s)")
+            params.append(filters['ftStatus'])
+        if filters.get('rejectionReason'):
+            where_clauses.append("(vqc_reason = ANY(%s) OR ft_reason = ANY(%s))")
+            params.extend([filters['rejectionReason'], filters['rejectionReason']])
+
+        if where_clauses:
+            base_query += " WHERE " + " AND ".join(where_clauses)
+        
+        base_query += " ORDER BY date DESC, id DESC;"
+
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(base_query, tuple(params))
+            results = cursor.fetchall()
+            
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write headers
+            headers = [desc[0] for desc in cursor.description]
+            writer.writerow(headers)
+            
+            # Write data
+            for row in results:
+                writer.writerow(row)
+            
+            output.seek(0)
+            return Response(output, mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=search_results.csv"})
+
+    except (psycopg2.Error, Exception) as e:
+        app.logger.error(f"Export failed: {e}")
+        return jsonify(status="error", message=f"Export failed: {e}"), 500
+    finally:
+        if conn: return_db_connection(conn)
+
+
+@app.route('/api/test_sheets_connection', methods=['POST'])
+def test_sheets_connection():
+    config = request.json
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            config.get('serviceAccountPath'),
+            scopes=['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        )
+        gc = gspread.authorize(creds)
+        
+        results = []
+        sheet_urls = {
+            "Vendor Data": config.get('vendorDataUrl'),
+            "VQC Data": config.get('vqcDataUrl'),
+            "FT Data": config.get('ftDataUrl')
+        }
+
+        for name, url in sheet_urls.items():
+            if url:
+                try:
+                    sheet = gc.open_by_url(url)
+                    results.append(f"✓ {name}: Connected to '{sheet.title}'")
+                except Exception as e:
+                    results.append(f"✗ {name}: FAILED ({e})")
+        
+        return jsonify({'status': 'success', 'message': "\n".join(results)})
+    except FileNotFoundError:
+        return jsonify({'status': 'error', 'message': f"Service account file not found at {config.get('serviceAccountPath')}"}), 400
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
+    init_db_pool()
     app.run(debug=True)
-

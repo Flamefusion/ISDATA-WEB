@@ -1,0 +1,9 @@
+Flask
+Flask-Cors 
+psycopg2-binary 
+python-dotenv
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+pandas
+gspread
