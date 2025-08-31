@@ -994,11 +994,11 @@ const ISDATA = () => {
   };
 
   const tabs = [ 
-    { id: 'config', label: 'Configuration', icon: Settings }, 
-    { id: 'preview', label: 'Data Preview', icon: Eye }, 
-    { id: 'migration', label: 'Migration', icon: Upload },
-    { id: 'search', label: 'Ring Search', icon: Search },
-    { id: 'reports', label: 'Daily Reports', icon: BarChart3 }  
+    { id: 'config', label: 'Configuration', icon: Settings, color: 'blue' }, 
+    { id: 'preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
+    { id: 'migration', label: 'Migration', icon: Upload, color: 'orange' },
+    { id: 'search', label: 'Ring Search', icon: Search, color: 'indigo' },
+    { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' }  
   ];
   const renderTabContent = () => {
     return (
@@ -1028,7 +1028,7 @@ const ISDATA = () => {
       </motion.header>
       <div className="max-w-7xl mx-auto px-6 py-8">
         <motion.div className="flex flex-wrap gap-2 mb-8 bg-white/60 dark:bg-gray-800/60 backdrop-blur-lg rounded-2xl p-2 border border-gray-200/50 dark:border-gray-700/50" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          {tabs.map((tab, index) => { const Icon = tab.icon; return ( <motion.button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${ activeTab === tab.id ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100/50 dark:hover:bg-gray-700/50' }`} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}><Icon className="w-5 h-5" />{tab.label}{activeTab === tab.id && ( <motion.div layoutId="activeTab" className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl -z-10" initial={false} transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} /> )}</motion.button> ); })}
+          {tabs.map((tab, index) => { const Icon = tab.icon; return ( <motion.button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${ activeTab === tab.id ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg` : `text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-${tab.color}-100 dark:hover:bg-${tab.color}-700` }`} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}><Icon className="w-5 h-5" />{tab.label}{activeTab === tab.id && ( <motion.div layoutId="activeTab" className={`absolute inset-0 bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 rounded-xl -z-10`} initial={false} transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} /> )}</motion.button> ); })}
         </motion.div>
         <div className="min-h-[600px]">{renderTabContent()}</div>
       </div>
