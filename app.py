@@ -66,13 +66,38 @@ def handle_exception(e):
 
 # --- API Endpoints ---
 
+def _test_single_db_connection(host, port, dbname, user, password):
+    """Attempts to establish a single database connection with provided parameters."""
+    conn = None
+    try:
+        conn = psycopg2.connect(
+            host=host, port=port, dbname=dbname, user=user, password=password, connect_timeout=5
+        )
+        return True, "Database connection successful!"
+    except psycopg2.Error as e:
+        return False, f"Database connection failed: {e}"
+    finally:
+        if conn:
+            conn.close()
+
 @app.route('/api/db/test', methods=['POST'])
 def test_db_connection():
-    """Tests the database connection."""
-    if init_db_pool():
-        return jsonify(status='success', message='Database connection pool initialized successfully!')
+    """Tests the database connection using parameters from the request body."""
+    config = request.json
+    db_host = config.get('dbHost')
+    db_port = config.get('dbPort')
+    db_name = config.get('dbName')
+    db_user = config.get('dbUser')
+    db_password = config.get('dbPassword')
+
+    if not all([db_host, db_port, db_name, db_user, db_password]):
+        return jsonify(status='error', message='All database configuration fields must be provided.'), 400
+
+    success, message = _test_single_db_connection(db_host, db_port, db_name, db_user, db_password)
+    if success:
+        return jsonify(status='success', message=message)
     else:
-        return jsonify(status='error', message='Failed to initialize database connection pool.'), 500
+        return jsonify(status='error', message=message), 500
 
 @app.route('/api/db/schema', methods=['POST'])
 def create_schema_endpoint():
@@ -584,28 +609,41 @@ def export_search_results():
 def test_sheets_connection():
     config = request.json
     try:
+        service_account_info = config.get('serviceAccountContent')
+        if not service_account_info or not isinstance(service_account_info, dict):
+            return jsonify({'status': 'error', 'message': 'Invalid or missing service account JSON content.'}), 400
+
         creds = Credentials.from_service_account_info(
-            config.get('serviceAccountContent'),
+            service_account_info,
             scopes=['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         )
         gc = gspread.authorize(creds)
         
-        results = []
         sheet_urls = {
             "Vendor Data": config.get('vendorDataUrl'),
             "VQC Data": config.get('vqcDataUrl'),
             "FT Data": config.get('ftDataUrl')
         }
 
+        # Check if any URLs are provided
+        if not any(sheet_urls.values()):
+            return jsonify({'status': 'error', 'message': 'No Google Sheet URLs provided for connection test.'}), 400
+
+        overall_status = 'success'
+        results = []
         for name, url in sheet_urls.items():
-            if url:
-                try:
-                    sheet = gc.open_by_url(url)
-                    results.append(f"✓ {name}: Connected to '{sheet.title}'")
-                except Exception as e:
-                    results.append(f"✗ {name}: FAILED ({e})")
+            if not url:
+                results.append(f"✗ {name}: No URL provided.")
+                overall_status = 'error'
+                continue
+            try:
+                sheet = gc.open_by_url(url)
+                results.append(f"✓ {name}: Connected to '{sheet.title}'")
+            except Exception as e:
+                results.append(f"✗ {name}: FAILED ({e})")
+                overall_status = 'error'
         
-        return jsonify({'status': 'success', 'message': "\n".join(results)})
+        return jsonify({'status': overall_status, 'message': "\n".join(results)})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

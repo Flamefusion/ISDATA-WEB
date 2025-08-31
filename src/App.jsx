@@ -145,7 +145,7 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
           Test Sheets Connection
         </motion.button>
         
-        {connectionStatus.sheets && (
+        {connectionStatus.sheets === 'success' && (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -153,6 +153,16 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
           >
             <CheckCircle className="w-5 h-5 text-green-500" />
             <span className="text-green-600 font-medium">Sheets connection successful!</span>
+          </motion.div>
+        )}
+        {connectionStatus.sheets === 'error' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 flex items-center gap-2"
+          >
+            <XCircle className="w-5 h-5 text-red-500" />
+            <span className="text-red-600 font-medium">Sheets connection failed. Check console for details.</span>
           </motion.div>
         )}
       </motion.div>
@@ -234,7 +244,7 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
           </motion.button>
         </div>
 
-        {connectionStatus.db && (
+        {connectionStatus.db === 'success' && (
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -242,6 +252,16 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
           >
             <CheckCircle className="w-5 h-5 text-green-500" />
             <span className="text-green-600 font-medium">Database connection successful!</span>
+          </motion.div>
+        )}
+        {connectionStatus.db === 'error' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 flex items-center gap-2"
+          >
+            <XCircle className="w-5 h-5 text-red-500" />
+            <span className="text-red-600 font-medium">Database connection failed. Check console for details.</span>
           </motion.div>
         )}
       </motion.div>
@@ -676,12 +696,24 @@ const ISDATA = () => {
   const testDbConnection = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/db/test', { method: 'POST' });
+      const response = await fetch('http://127.0.0.1:5000/api/db/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbHost: config.dbHost,
+          dbPort: config.dbPort,
+          dbName: config.dbName,
+          dbUser: config.dbUser,
+          dbPassword: config.dbPassword
+        })
+      });
       const data = await response.json();
       setConnectionStatus(prev => ({ ...prev, db: data.status }));
+      setCustomAlert({ message: data.message, type: data.status });
     } catch (error) {
       console.error('Error testing database connection:', error);
       setConnectionStatus(prev => ({ ...prev, db: 'error' }));
+      setCustomAlert({ message: `Error testing database connection: ${error.message}`, type: 'error' });
     }
     setIsLoading(false);
   };
