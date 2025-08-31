@@ -81,75 +81,76 @@ const ISDATA = () => {
   // Mock functions for demonstration
   const testDbConnection = async () => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setConnectionStatus(prev => ({ ...prev, db: 'success' }));
-      setIsLoading(false);
-    }, 2000);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/test_db_connection');
+      const data = await response.json();
+      setConnectionStatus(prev => ({ ...prev, db: data.status }));
+    } catch (error) {
+      console.error('Error testing database connection:', error);
+      setConnectionStatus(prev => ({ ...prev, db: 'error' }));
+    }
+    setIsLoading(false);
   };
 
   const testSheetsConnection = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setConnectionStatus(prev => ({ ...prev, sheets: 'success' }));
-      setIsLoading(false);
-    }, 2000);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/test_sheets_connection');
+      const data = await response.json();
+      setConnectionStatus(prev => ({ ...prev, sheets: data.status }));
+    } catch (error) {
+      console.error('Error testing sheets connection:', error);
+      setConnectionStatus(prev => ({ ...prev, sheets: 'error' }));
+    }
+    setIsLoading(false);
   };
 
-  const loadPreviewData = () => {
+  const loadPreviewData = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      const mockData = Array.from({ length: 50 }, (_, i) => ({
-        serial_number: `RNG${String(i + 1).padStart(6, '0')}`,
-        mo_number: `MO${String(Math.floor(Math.random() * 1000)).padStart(4, '0')}`,
-        vendor: ['Vendor A', 'Vendor B', 'Vendor C'][Math.floor(Math.random() * 3)],
-        date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        vqc_status: Math.random() > 0.7 ? 'Fail' : 'Pass',
-        ft_status: Math.random() > 0.8 ? 'Fail' : 'Pass',
-        vqc_reason: Math.random() > 0.7 ? 'Dimensional tolerance exceeded' : '',
-        ft_reason: Math.random() > 0.8 ? 'Performance below threshold' : ''
-      }));
-      setPreviewData(mockData);
-      setIsLoading(false);
-    }, 1500);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/data');
+      const data = await response.json();
+      setPreviewData(data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+    setIsLoading(false);
   };
+
+  useEffect(() => {
+    loadPreviewData();
+  }, []);
 
   const startMigration = () => {
     setMigrationProgress(0);
     setMigrationLog([]);
-    const logs = [
-      'Starting migration process...',
-      'Creating temporary table rings_temp...',
-      'Preparing data buffer...',
-      'Bulk copying data to temp table...',
-      'Updating existing records...',
-      'Inserting new records...',
-      'Cleaning up temporary table...',
-      'Migration completed successfully!'
-    ];
-    
-    logs.forEach((log, index) => {
-      setTimeout(() => {
-        setMigrationLog(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message: log }]);
-        setMigrationProgress(((index + 1) / logs.length) * 100);
-      }, (index + 1) * 800);
-    });
+    const eventSource = new EventSource('http://127.0.0.1:5000/api/migrate');
+    eventSource.onmessage = (event) => {
+      const log = event.data;
+      setMigrationLog(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message: log }]);
+      setMigrationProgress(prev => prev + (100 / 8)); // Assuming 8 log messages
+    };
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
   };
 
-  const performSearch = () => {
+  const performSearch = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      const mockResults = Array.from({ length: 25 }, (_, i) => ({
-        serial_number: `RNG${String(i + 1).padStart(6, '0')}`,
-        mo_number: `MO${String(Math.floor(Math.random() * 1000)).padStart(4, '0')}`,
-        vendor: ['Vendor A', 'Vendor B', 'Vendor C'][Math.floor(Math.random() * 3)],
-        date: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        vqc_status: Math.random() > 0.7 ? 'Fail' : 'Pass',
-        ft_status: Math.random() > 0.8 ? 'Fail' : 'Pass'
-      }));
-      setSearchResults(mockResults);
-      setIsLoading(false);
-    }, 1000);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(searchFilters),
+      });
+      const data = await response.json();
+      setSearchResults(data);
+    } catch (error) {
+      console.error('Error performing search:', error);
+    }
+    setIsLoading(false);
   };
 
   const ConfigTab = () => (
