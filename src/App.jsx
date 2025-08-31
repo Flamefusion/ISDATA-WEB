@@ -423,7 +423,7 @@ const MigrationTab = ({ migrationProgress, migrationLog, startMigration }) => (
   </motion.div>
 );
 
-const SearchTab = ({ searchFilters, setSearchFilters, filterOptions, performSearch, isLoading, searchResults, exportCsv }) => (
+const SearchTab = ({ searchFilters, setSearchFilters, filterOptions, performSearch, isLoading, searchResults, exportCsv, clearSearchFilters }) => (
   <motion.div {...fadeInUp} className="space-y-6">
     <div className="bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-2xl p-6 border border-indigo-200/50 dark:border-indigo-700/50">
       <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-3">
@@ -504,6 +504,15 @@ const SearchTab = ({ searchFilters, setSearchFilters, filterOptions, performSear
         >
           <Download className="w-5 h-5" />
           Export CSV
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={clearSearchFilters}
+          className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
+        >
+          <Filter className="w-5 h-5" />
+          Clear Filters
         </motion.button>
       </div>
     </div>
@@ -683,6 +692,17 @@ const ISDATA = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [filterOptions, setFilterOptions] = useState({ vendors: [], vqc_statuses: [], ft_statuses: [], reasons: [] });
 
+  const initialSearchFilters = {
+    serialNumbers: '',
+    moNumbers: '',
+    dateFrom: '',
+    dateTo: '',
+    vendor: [],
+    vqcStatus: [],
+    ftStatus: [],
+    rejectionReason: []
+  };
+
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
@@ -697,6 +717,10 @@ const ISDATA = () => {
     fetchFilterOptions();
     loadPreviewData();
   }, []);
+
+  const clearSearchFilters = () => {
+    setSearchFilters(initialSearchFilters);
+  };
 
   const loadPreviewData = async () => {
     setIsLoading(true);
@@ -839,12 +863,16 @@ const ISDATA = () => {
   const performSearch = async () => {
     setIsLoading(true);
     try {
+      const cleanedFilters = { ...searchFilters };
+      if (cleanedFilters.dateFrom === '') delete cleanedFilters.dateFrom;
+      if (cleanedFilters.dateTo === '') delete cleanedFilters.dateTo;
+
       const response = await fetch('http://127.0.0.1:5000/api/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(searchFilters),
+        body: JSON.stringify(cleanedFilters),
       });
       const data = await response.json();
       setSearchResults(data);
@@ -919,6 +947,7 @@ const ISDATA = () => {
           isLoading={isLoading} 
           searchResults={searchResults} 
           exportCsv={exportCsv} 
+          clearSearchFilters={clearSearchFilters}
         />;
       default:
         return <ConfigTab 

@@ -478,11 +478,21 @@ def search():
             params.append(mo_numbers)
 
     if filters.get('dateFrom'):
-        query += " AND date >= %s"
-        params.append(filters['dateFrom'])
+        try:
+            from_date = pd.to_datetime(filters['dateFrom']).date()
+            query += " AND date >= %s"
+            params.append(from_date)
+        except (ValueError, TypeError) as e:
+            app.logger.warning(f"Invalid dateFrom filter: {filters['dateFrom']}. Error: {e}")
+            # Optionally, return an error to the frontend or ignore the filter
     if filters.get('dateTo'):
-        query += " AND date <= %s"
-        params.append(filters['dateTo'])
+        try:
+            to_date = pd.to_datetime(filters['dateTo']).date()
+            query += " AND date <= %s"
+            params.append(to_date)
+        except (ValueError, TypeError) as e:
+            app.logger.warning(f"Invalid dateTo filter: {filters['dateTo']}. Error: {e}")
+            # Optionally, return an error to the frontend or ignore the filter
     
     # Handle multi-select filters
     if filters.get('vendor'):
