@@ -270,11 +270,29 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
 };
 
 const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
+  const desiredColumns = [
+    'date',
+    'vendor',
+    'mo_number',
+    'serial_number',
+    'sku',
+    'ring_size',
+    'vqc_status',
+    'ft_status',
+    'vqc_reason',
+    'ft_reason',
+    'created_at',
+    'updated_at',
+  ];
+
   const [columns, setColumns] = useState([]);
 
   useEffect(() => {
     if (previewData.length > 0) {
-      setColumns(Object.keys(previewData[0]));
+      // Filter previewData[0] keys to only include desiredColumns
+      const availableColumns = Object.keys(previewData[0]);
+      const filteredAndOrderedColumns = desiredColumns.filter(col => availableColumns.includes(col));
+      setColumns(filteredAndOrderedColumns);
     }
   }, [previewData]);
 
