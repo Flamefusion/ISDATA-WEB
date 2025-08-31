@@ -860,27 +860,117 @@ const ISDATA = () => {
     }
   };
 
-  const performSearch = async () => {
-    setIsLoading(true);
-    try {
-      const cleanedFilters = { ...searchFilters };
-      if (cleanedFilters.dateFrom === '') delete cleanedFilters.dateFrom;
-      if (cleanedFilters.dateTo === '') delete cleanedFilters.dateTo;
 
-      const response = await fetch('http://127.0.0.1:5000/api/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(cleanedFilters),
-      });
-      const data = await response.json();
-      setSearchResults(data);
+
+const validateAndFormatDates = (filters) => {
+  const formattedFilters = { ...filters };
+  
+  // Validate and format dateFrom
+  if (formattedFilters.dateFrom) {
+    try {
+      // Ensure the date is in YYYY-MM-DD format
+      const dateFrom = new Date(formattedFilters.dateFrom + 'T00:00:00');
+      if (isNaN(dateFrom.getTime())) {
+        throw new Error('Invalid dateFrom');
+      }
+      formattedFilters.dateFrom = dateFrom.toISOString().split('T')[0]; // YYYY-MM-DD
     } catch (error) {
-      console.error('Error performing search:', error);
+      console.error('Invalid dateFrom:', formattedFilters.dateFrom);
+      delete formattedFilters.dateFrom; // Remove invalid date
     }
-    setIsLoading(false);
-  };
+  }
+  
+  // Validate and format dateTo
+  if (formattedFilters.dateTo) {
+    try {
+      // Ensure the date is in YYYY-MM-DD format
+      const dateTo = new Date(formattedFilters.dateTo + 'T00:00:00');
+      if (isNaN(dateTo.getTime())) {
+        throw new Error('Invalid dateTo');
+      }
+      formattedFilters.dateTo = dateTo.toISOString().split('T')[0]; // YYYY-MM-DD
+    } catch (error) {
+      console.error('Invalid dateTo:', formattedFilters.dateTo);
+      delete formattedFilters.dateTo; // Remove invalid date
+    }
+  }
+  
+  // Validate date range
+  if (formattedFilters.dateFrom && formattedFilters.dateTo) {
+    const fromDate = new Date(formattedFilters.dateFrom);
+    const toDate = new Date(formattedFilters.dateTo);
+    
+    if (fromDate > toDate) {
+      console.error('dateFrom cannot be later than dateTo');
+      // You can show an alert to the user here
+      return null; // Return null to indicate invalid date range
+    }
+  }
+  
+  return formattedFilters;
+};
+
+
+const performSearch = async () => {
+  // Validate dates first
+  const validatedFilters = validateAndFormatDates(searchFilters);
+  
+  if (!validatedFilters) {
+    setCustomAlert({ 
+      message: 'Invalid date range: "Date From" cannot be later than "Date To"', 
+      type: 'error' 
+    });
+    return;
+  }
+  
+  setIsLoading(true);
+  try {
+    // Remove empty string filters to avoid sending unnecessary data
+    const cleanedFilters = Object.entries(validatedFilters).reduce((acc, [key, value]) => {
+      if (value !== '' && value !== null && value !== undefined) {
+        // For arrays, only include non-empty arrays
+        if (Array.isArray(value)) {
+          if (value.length > 0) acc[key] = value;
+        } else {
+          acc[key] = value;
+        }
+      }
+      return acc;
+    }, {});
+
+    console.log('Sending filters to backend:', cleanedFilters); // Debug log
+
+    const response = await fetch('http://127.0.0.1:5000/api/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(cleanedFilters),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Search results received:', data.length, 'records'); // Debug log
+    setSearchResults(data);
+    
+    if (data.length === 0) {
+      setCustomAlert({ 
+        message: 'No results found for the specified criteria', 
+        type: 'error' 
+      });
+    }
+  } catch (error) {
+    console.error('Error performing search:', error);
+    setCustomAlert({ 
+      message: `Search failed: ${error.message}`, 
+      type: 'error' 
+    });
+  }
+  setIsLoading(false);
+};
 
   const exportCsv = async () => {
     setIsLoading(true);

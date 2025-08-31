@@ -461,67 +461,101 @@ def migrate():
 @app.route('/api/search', methods=['POST'])
 def search():
     filters = request.json
+    app.logger.info(f"Received search filters: {filters}")  # Debug log
+    
     query = "SELECT date, vendor, mo_number, serial_number, vqc_status, ft_status, vqc_reason, ft_reason FROM rings WHERE 1=1"
     params = []
 
-    # Use UPPER for case-insensitive comparison
-    if filters.get('serialNumbers'):
-        serial_numbers = [s.strip().upper() for s in filters['serialNumbers'].split(',') if s.strip()]
-        if serial_numbers:
-            query += " AND UPPER(serial_number) = ANY(%s)"
-            params.append(serial_numbers)
+    try:
+        # Use UPPER for case-insensitive comparison
+        if filters.get('serialNumbers'):
+            serial_numbers = [s.strip().upper() for s in filters['serialNumbers'].split(',') if s.strip()]
+            if serial_numbers:
+                query += " AND UPPER(serial_number) = ANY(%s)"
+                params.append(serial_numbers)
 
-    if filters.get('moNumbers'):
-        mo_numbers = [s.strip().upper() for s in filters['moNumbers'].split(',') if s.strip()]
-        if mo_numbers:
-            query += " AND UPPER(mo_number) = ANY(%s)"
-            params.append(mo_numbers)
+        if filters.get('moNumbers'):
+            mo_numbers = [s.strip().upper() for s in filters['moNumbers'].split(',') if s.strip()]
+            if mo_numbers:
+                query += " AND UPPER(mo_number) = ANY(%s)"
+                params.append(mo_numbers)
 
-    if filters.get('dateFrom'):
-        try:
-            from_date = pd.to_datetime(filters['dateFrom']).date()
-            query += " AND date >= %s"
-            params.append(from_date)
-        except (ValueError, TypeError) as e:
-            app.logger.warning(f"Invalid dateFrom filter: {filters['dateFrom']}. Error: {e}")
-            # Optionally, return an error to the frontend or ignore the filter
-    if filters.get('dateTo'):
-        try:
-            to_date = pd.to_datetime(filters['dateTo']).date()
-            query += " AND date <= %s"
-            params.append(to_date)
-        except (ValueError, TypeError) as e:
-            app.logger.warning(f"Invalid dateTo filter: {filters['dateTo']}. Error: {e}")
-            # Optionally, return an error to the frontend or ignore the filter
-    
-    # Handle multi-select filters
-    if filters.get('vendor'):
-        query += " AND vendor = ANY(%s)"
-        params.append(filters['vendor'])
-    if filters.get('vqcStatus'):
-        query += " AND vqc_status = ANY(%s)"
-        params.append(filters['vqcStatus'])
-    if filters.get('ftStatus'):
-        query += " AND ft_status = ANY(%s)"
-        params.append(filters['ftStatus'])
-    if filters.get('rejectionReason'):
-        query += " AND (vqc_reason = ANY(%s) OR ft_reason = ANY(%s))"
-        params.extend([filters['rejectionReason'], filters['rejectionReason']])
+        # Improved date filtering with better error handling
+        if filters.get('dateFrom'):
+            date_from_str = filters['dateFrom']
+            app.logger.info(f"Processing dateFrom: {date_from_str}")
+            try:
+                # Parse the date string - handle both YYYY-MM-DD and other formats
+                if isinstance(date_from_str, str):
+                    # Try to parse the date
+                    from_date = pd.to_datetime(date_from_str).date()
+                    query += " AND date >= %s"
+                    params.append(from_date)
+                    app.logger.info(f"Successfully parsed dateFrom: {from_date}")
+                else:
+                    app.logger.warning(f"dateFrom is not a string: {type(date_from_str)}")
+            except Exception as e:
+                app.logger.error(f"Failed to parse dateFrom '{date_from_str}': {e}")
+                return jsonify({'error': f'Invalid dateFrom format: {date_from_str}'}), 400
 
-    query += " ORDER BY date DESC, id DESC LIMIT 5000;"
+        if filters.get('dateTo'):
+            date_to_str = filters['dateTo']
+            app.logger.info(f"Processing dateTo: {date_to_str}")
+            try:
+                # Parse the date string - handle both YYYY-MM-DD and other formats
+                if isinstance(date_to_str, str):
+                    # Try to parse the date
+                    to_date = pd.to_datetime(date_to_str).date()
+                    query += " AND date <= %s"
+                    params.append(to_date)
+                    app.logger.info(f"Successfully parsed dateTo: {to_date}")
+                else:
+                    app.logger.warning(f"dateTo is not a string: {type(date_to_str)}")
+            except Exception as e:
+                app.logger.error(f"Failed to parse dateTo '{date_to_str}': {e}")
+                return jsonify({'error': f'Invalid dateTo format: {date_to_str}'}), 400
+        
+        # Handle multi-select filters
+        if filters.get('vendor') and len(filters['vendor']) > 0:
+            query += " AND vendor = ANY(%s)"
+            params.append(filters['vendor'])
+            
+        if filters.get('vqcStatus') and len(filters['vqcStatus']) > 0:
+            query += " AND vqc_status = ANY(%s)"
+            params.append(filters['vqcStatus'])
+            
+        if filters.get('ftStatus') and len(filters['ftStatus']) > 0:
+            query += " AND ft_status = ANY(%s)"
+            params.append(filters['ftStatus'])
+            
+        if filters.get('rejectionReason') and len(filters['rejectionReason']) > 0:
+            query += " AND (vqc_reason = ANY(%s) OR ft_reason = ANY(%s))"
+            params.extend([filters['rejectionReason'], filters['rejectionReason']])
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(query, tuple(params))
-    
-    colnames = [desc[0] for desc in cur.description]
-    data = [dict(zip(colnames, row)) for row in cur.fetchall()]
-    
-    cur.close()
-    return_db_connection(conn)
+        query += " ORDER BY date DESC, id DESC LIMIT 5000;"
+        
+        app.logger.info(f"Final query: {query}")
+        app.logger.info(f"Query parameters: {params}")
 
-    return jsonify(data)
-
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(query, tuple(params))
+        
+        colnames = [desc[0] for desc in cur.description]
+        data = [dict(zip(colnames, row)) for row in cur.fetchall()]
+        
+        cur.close()
+        return_db_connection(conn)
+        
+        app.logger.info(f"Search completed successfully, returning {len(data)} records")
+        return jsonify(data)
+        
+    except psycopg2.Error as db_err:
+        app.logger.error(f"Database error during search: {db_err}")
+        return jsonify({'error': f'Database error: {str(db_err)}'}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error during search: {e}")
+        return jsonify({'error': f'Search failed: {str(e)}'}), 500
 @app.route('/api/search/filters', methods=['GET'])
 def get_search_filters():
     """Gets distinct values for search filters from the database."""
