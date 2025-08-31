@@ -310,7 +310,7 @@ def migrate():
         try:
             yield from log_callback("Connecting to Google API...")
             scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            creds = Credentials.from_service_account_file(config.get('serviceAccountPath'), scopes=scopes)
+            creds = Credentials.from_service_account_info(config.get('serviceAccountContent'), scopes=scopes)
             gc = gspread.authorize(creds)
             yield from log_callback("Google API connection successful.")
         except Exception as e:
@@ -584,8 +584,8 @@ def export_search_results():
 def test_sheets_connection():
     config = request.json
     try:
-        creds = service_account.Credentials.from_service_account_file(
-            config.get('serviceAccountPath'),
+        creds = Credentials.from_service_account_info(
+            config.get('serviceAccountContent'),
             scopes=['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         )
         gc = gspread.authorize(creds)
@@ -606,8 +606,6 @@ def test_sheets_connection():
                     results.append(f"✗ {name}: FAILED ({e})")
         
         return jsonify({'status': 'success', 'message': "\n".join(results)})
-    except FileNotFoundError:
-        return jsonify({'status': 'error', 'message': f"Service account file not found at {config.get('serviceAccountPath')}"}), 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

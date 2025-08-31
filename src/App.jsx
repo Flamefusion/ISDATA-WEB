@@ -49,7 +49,26 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setConfig(prev => ({ ...prev, serviceAccountPath: file.name }));
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const jsonContent = JSON.parse(e.target.result);
+          setConfig(prev => ({
+            ...prev,
+            serviceAccountFileName: file.name,
+            serviceAccountContent: jsonContent
+          }));
+        } catch (error) {
+          console.error("Error parsing service account JSON:", error);
+          alert("Invalid JSON file. Please upload a valid service account JSON.");
+          setConfig(prev => ({
+            ...prev,
+            serviceAccountFileName: '',
+            serviceAccountContent: ''
+          }));
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -74,10 +93,10 @@ const ConfigTab = ({ config, setConfig, isLoading, connectionStatus, testSheetsC
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                value={config.serviceAccountPath}
-                onChange={(e) => setConfig(prev => ({ ...prev, serviceAccountPath: e.target.value }))}
+                value={config.serviceAccountFileName}
+                readOnly
                 className="flex-grow w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 transition-all duration-200"
-                placeholder="Path to your service account JSON file..."
+                placeholder="Service account JSON file selected..."
               />
               <input 
                 type="file" 
@@ -577,7 +596,8 @@ const ISDATA = () => {
     sheets: null
   });
   const [config, setConfig] = useState({
-    serviceAccountPath: '',
+    serviceAccountFileName: '',
+    serviceAccountContent: '',
     vendorDataUrl: '',
     vqcDataUrl: '',
     ftDataUrl: '',
