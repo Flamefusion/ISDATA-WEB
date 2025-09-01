@@ -135,102 +135,18 @@ const SearchTab = ({ searchFilters, setSearchFilters, filterOptions, performSear
   </motion.div>
 );
 
-const ReportTab = () => {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedVendor, setSelectedVendor] = useState('all');
-  const [reportData, setReportData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [vendors, setVendors] = useState(['all']);
-  const [error, setError] = useState(null);
-
-  // Fetch available vendors on component mount
-  useEffect(() => {
-    const fetchVendors = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:5000/api/search/filters');
-        if (response.ok) {
-          const data = await response.json();
-          setVendors(['all', ...data.vendors]);
-        }
-      } catch (error) {
-        console.error('Error fetching vendors:', error);
-      }
-    };
-    fetchVendors();
-  }, []);
-
-  const fetchDailyReport = async (selectedDate, selectedVendor) => {
-    const response = await fetch('http://127.0.0.1:5000/api/reports/daily', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        date: selectedDate,
-        vendor: selectedVendor
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-  };
-
-  const loadReport = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchDailyReport(selectedDate, selectedVendor);
-      setReportData(data);
-    } catch (error) {
-      console.error('Error loading report:', error);
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const exportReport = async (format) => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          date: selectedDate,
-          vendor: selectedVendor,
-          format: format
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `daily_report_${selectedDate}_${selectedVendor}.${format === 'excel' ? 'xlsx' : 'csv'}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting report:', error);
-      setError('Failed to export report');
-    }
-  };
-
-  useEffect(() => {
-    if (selectedDate) {
-      loadReport();
-    }
-  }, [selectedDate, selectedVendor]);
-
+const ReportTab = ({
+  selectedDate,
+  setSelectedDate,
+  selectedVendor,
+  setSelectedVendor,
+  reportData,
+  isLoading,
+  vendors,
+  error,
+  loadReport,
+  exportReport,
+}) => {
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <motion.div
       variants={staggerItem}
@@ -439,7 +355,7 @@ const ReportTab = () => {
 
   if (error) {
     return (
-      <motion.div {...fadeInUp} className="space-y-6">
+      <div className="space-y-6">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-2xl p-6">
           <div className="flex items-center gap-3">
             <XCircle className="w-6 h-6 text-red-500" />
@@ -459,7 +375,7 @@ const ReportTab = () => {
             Retry
           </motion.button>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
@@ -932,11 +848,29 @@ const ISDATA = () => {
     },
   };
 
+  // --- State for Data Preview ---
   const [previewData, setPreviewData] = useState([]);
+  
+  // --- State for Migration ---
   const [migrationProgress, setMigrationProgress] = useState(0);
   const [migrationLog, setMigrationLog] = useState([]);
+
+  // --- State for Search ---
   const [searchResults, setSearchResults] = useState([]);
   const [filterOptions, setFilterOptions] = useState({ vendors: [], vqc_statuses: [], ft_statuses: [], reasons: [] });
+  const initialSearchFilters = {
+    serialNumbers: '', moNumbers: '', dateFrom: '', dateTo: '',
+    vendor: [], vqcStatus: [], ftStatus: [], rejectionReason: []
+  };
+  const [searchFilters, setSearchFilters] = useState(initialSearchFilters);
+
+  // --- State for Reports ---
+  const [reportSelectedDate, setReportSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportSelectedVendor, setReportSelectedVendor] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [reportIsLoading, setReportIsLoading] = useState(false);
+  const [reportError, setReportError] = useState(null);
+  const [reportVendors, setReportVendors] = useState(['all']);
 
   const toggleDarkMode = () => setIsDarkMode(prevMode => !prevMode);
 
@@ -945,18 +879,6 @@ const ISDATA = () => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
-  const initialSearchFilters = {
-    serialNumbers: '',
-    moNumbers: '',
-    dateFrom: '',
-    dateTo: '',
-    vendor: [],
-    vqcStatus: [],
-    ftStatus: [],
-    rejectionReason: []
-  };
-  const [searchFilters, setSearchFilters] = useState(initialSearchFilters);
-
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
@@ -964,6 +886,7 @@ const ISDATA = () => {
         if (!response.ok) return;
         const data = await response.json();
         setFilterOptions(data);
+        setReportVendors(['all', ...data.vendors]);
       } catch (error) {
         console.error('Error fetching filter options:', error);
       }
@@ -994,11 +917,8 @@ const ISDATA = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          dbHost: config.dbHost,
-          dbPort: config.dbPort,
-          dbName: config.dbName,
-          dbUser: config.dbUser,
-          dbPassword: config.dbPassword
+          dbHost: config.dbHost, dbPort: config.dbPort, dbName: config.dbName,
+          dbUser: config.dbUser, dbPassword: config.dbPassword
         })
       });
       const data = await response.json();
@@ -1014,9 +934,7 @@ const ISDATA = () => {
     setIsLoading(true);
     try {
       const response = await fetch('http://127.0.0.1:5000/api/test_sheets_connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config)
       });
       const data = await response.json();
       setConnectionStatus(prev => ({ ...prev, sheets: data.status }));
@@ -1056,9 +974,7 @@ const ISDATA = () => {
     setMigrationLog([ { timestamp: new Date().toLocaleTimeString(), message: "Starting migration..." } ]);
     try {
       const response = await fetch('http://127.0.0.1:5000/api/migrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', },
-        body: JSON.stringify(config),
+        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(config),
       });
       if (!response.body) return;
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -1103,9 +1019,7 @@ const ISDATA = () => {
         return acc;
       }, {});
       const response = await fetch('http://127.0.0.1:5000/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', },
-        body: JSON.stringify(cleanedFilters),
+        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(cleanedFilters),
       });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
@@ -1120,9 +1034,7 @@ const ISDATA = () => {
     setIsLoading(true);
     try {
       const response = await fetch('http://127.0.0.1:5000/api/search/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', },
-        body: JSON.stringify(searchFilters),
+        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(searchFilters),
       });
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -1132,6 +1044,57 @@ const ISDATA = () => {
     setIsLoading(false);
   };
 
+  // --- Report-specific functions now in parent ---
+  const loadReport = async () => {
+    setReportIsLoading(true);
+    setReportError(null);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/reports/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: reportSelectedDate, vendor: reportSelectedVendor })
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setReportData(data);
+    } catch (error) {
+      console.error('Error loading report:', error);
+      setReportError(error.message);
+    } finally {
+      setReportIsLoading(false);
+    }
+  };
+
+  const exportReport = async (format) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/reports/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: reportSelectedDate, vendor: reportSelectedVendor, format: format })
+      });
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily_report_${reportSelectedDate}_${reportSelectedVendor}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      setReportError('Failed to export report');
+    }
+  };
+
+  useEffect(() => {
+    // Automatically fetch report data when date or vendor changes
+    if (reportSelectedDate) {
+      loadReport();
+    }
+  }, [reportSelectedDate, reportSelectedVendor]);
+
   const tabs = [ 
     { id: 'config', label: 'Configuration', icon: Settings, color: 'blue' }, 
     { id: 'preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
@@ -1140,26 +1103,11 @@ const ISDATA = () => {
     { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' }  
   ];
   const tabColorClasses = {
-    blue: {
-      active: 'bg-gradient-to-r from-blue-500 to-blue-600',
-      hover: 'hover:bg-blue-100',
-    },
-    green: {
-      active: 'bg-gradient-to-r from-green-500 to-green-600',
-      hover: 'hover:bg-green-100',
-    },
-    orange: {
-      active: 'bg-gradient-to-r from-orange-500 to-orange-600',
-      hover: 'hover:bg-orange-100',
-    },
-    indigo: {
-      active: 'bg-gradient-to-r from-indigo-500 to-indigo-600',
-      hover: 'hover:bg-indigo-100',
-    },
-    purple: {
-      active: 'bg-gradient-to-r from-purple-500 to-purple-600',
-      hover: 'hover:bg-purple-100',
-    },
+    blue: { active: 'bg-gradient-to-r from-blue-500 to-blue-600', hover: 'hover:bg-blue-100', },
+    green: { active: 'bg-gradient-to-r from-green-500 to-green-600', hover: 'hover:bg-green-100', },
+    orange: { active: 'bg-gradient-to-r from-orange-500 to-orange-600', hover: 'hover:bg-orange-100', },
+    indigo: { active: 'bg-gradient-to-r from-indigo-500 to-indigo-600', hover: 'hover:bg-indigo-100', },
+    purple: { active: 'bg-gradient-to-r from-purple-500 to-purple-600', hover: 'hover:bg-purple-100', },
   };
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1167,7 +1115,18 @@ const ISDATA = () => {
       case 'preview': return <PreviewTab previewData={previewData} isLoading={isLoading} loadPreviewData={loadPreviewData} />;
       case 'migration': return <MigrationTab migrationProgress={migrationProgress} migrationLog={migrationLog} startMigration={startMigration} />;
       case 'search': return <SearchTab searchFilters={searchFilters} setSearchFilters={setSearchFilters} filterOptions={filterOptions} performSearch={performSearch} isLoading={isLoading} searchResults={searchResults} exportCsv={exportCsv} clearSearchFilters={clearSearchFilters} />;
-      case 'reports':return <ReportTab />;
+      case 'reports': return <ReportTab 
+                              selectedDate={reportSelectedDate}
+                              setSelectedDate={setReportSelectedDate}
+                              selectedVendor={reportSelectedVendor}
+                              setSelectedVendor={setReportSelectedVendor}
+                              reportData={reportData}
+                              isLoading={reportIsLoading}
+                              vendors={reportVendors}
+                              error={reportError}
+                              loadReport={loadReport}
+                              exportReport={exportReport}
+                             />;
       default: return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
     }
   };
