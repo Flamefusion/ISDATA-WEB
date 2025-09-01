@@ -464,7 +464,7 @@ const ReportTab = () => {
   }
 
   return (
-    <motion.div variants={fadeInUp} className="space-y-6">
+    <div className="space-y-6">
       {/* Header Section */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-black dark:via-gray-900/[0.3] dark:to-black rounded-2xl p-6 border border-blue-200/50 dark:border-gray-700/30">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -838,7 +838,7 @@ const ReportTab = () => {
           </motion.button>
         </motion.div>
       )}
-    </motion.div>
+    </div>
   );
 };
 
@@ -878,7 +878,7 @@ const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode }) => {
 
 const ISDATA = () => {
   const [activeTab, setActiveTab] = useState('config');
-  const [prevActiveTab, setPrevActiveTab] = useState(null); // New state to track previous tab
+  const [prevActiveTab, setPrevActiveTab] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({ db: null, sheets: null });
   const [config, setConfig] = useState({
@@ -905,23 +905,33 @@ const ISDATA = () => {
     setActiveTab(tabId);
   };
 
-  // Animation variants for tab content sliding
-  const slideVariants = {
-    enter: (direction) => ({
-      x: direction > 0 ? 50 : -50,
+  const revealVariants = {
+    initial: {
       opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
+      y: 50,
+      scale: 0.9,
     },
-    exit: (direction) => ({
-      x: direction < 0 ? 50 : -50,
+    center: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 20,
+        duration: 0.7,
+      },
+    },
+    exit: {
       opacity: 0,
-    }),
+      y: -50,
+      scale: 0.9,
+      transition: {
+        duration: 0.3,
+      },
+    },
   };
 
-  // --- FIX: Add missing state hooks ---
   const [previewData, setPreviewData] = useState([]);
   const [migrationProgress, setMigrationProgress] = useState(0);
   const [migrationLog, setMigrationLog] = useState([]);
@@ -935,7 +945,6 @@ const ISDATA = () => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
-  // --- FIX: Close the initialSearchFilters object and initialize searchFilters state ---
   const initialSearchFilters = {
     serialNumbers: '',
     moNumbers: '',
@@ -978,7 +987,6 @@ const ISDATA = () => {
     setIsLoading(false);
   };
   
-  // --- (Rest of the functions are unchanged and correct) ---
   const testDbConnection = async () => {
     setIsLoading(true);
     try {
@@ -1131,8 +1139,6 @@ const ISDATA = () => {
     { id: 'search', label: 'Ring Search', icon: Search, color: 'indigo' },
     { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' }  
   ];
-
-  // This object ensures Tailwind's JIT compiler detects all dynamic classes
   const tabColorClasses = {
     blue: {
       active: 'bg-gradient-to-r from-blue-500 to-blue-600',
@@ -1155,7 +1161,6 @@ const ISDATA = () => {
       hover: 'hover:bg-purple-100',
     },
   };
-
   const renderTabContent = () => {
     switch (activeTab) {
       case 'config': return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
@@ -1205,15 +1210,13 @@ const ISDATA = () => {
             ); 
           })}
         </motion.div>
-        <AnimatePresence mode="wait" custom={tabs.findIndex(tab => tab.id === activeTab) > tabs.findIndex(tab => tab.id === prevActiveTab) ? 1 : -1}>
+        <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            variants={slideVariants}
-            initial="enter"
+            variants={revealVariants}
+            initial="initial"
             animate="center"
             exit="exit"
-            custom={tabs.findIndex(tab => tab.id === activeTab) > tabs.findIndex(tab => tab.id === prevActiveTab) ? 1 : -1}
-            transition={{ type: "tween", ease: "easeInOut", duration: 0.5 }}
             className="min-h-[600px]"
           >
             {renderTabContent()}
