@@ -718,8 +718,8 @@ def get_daily_report():
             cursor.execute(f"""
                 SELECT 
                     COUNT(*) as total_received,
-                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 1 END) as total_accepted,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' OR ft_status != 'Accepted' THEN 1 END) as total_rejected
+                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as total_accepted,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as total_rejected
                     {", vendor" if selected_vendor == 'all' else ""}
                 FROM rings 
                 WHERE {date_condition}{vendor_condition}
@@ -828,8 +828,8 @@ def get_daily_report():
                 SELECT 
                     EXTRACT(HOUR FROM created_at) as hour,
                     COUNT(*) as received,
-                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 1 END) as accepted,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' OR ft_status != 'Accepted' THEN 1 END) as rejected
+                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as accepted,
+                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as rejected
                 FROM rings 
                 WHERE {date_condition}{vendor_condition}
                 GROUP BY EXTRACT(HOUR FROM created_at)
@@ -913,7 +913,7 @@ def export_daily_report():
                     ft_status,
                     ft_reason,
                     CASE 
-                        WHEN vqc_status = 'ACCEPTED' AND ft_status = 'Accepted' THEN 'Accepted'
+                        WHEN vqc_status = 'ACCEPTED' THEN 'Accepted'
                         ELSE 'Rejected'
                     END as overall_status,
                     created_at
