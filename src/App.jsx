@@ -769,6 +769,7 @@ const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode }) => {
 
 const ISDATA = () => {
   const [activeTab, setActiveTab] = useState('config');
+  const [prevActiveTab, setPrevActiveTab] = useState(null); // New state to track previous tab
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({ db: null, sheets: null });
   const [config, setConfig] = useState({
@@ -789,6 +790,27 @@ const ISDATA = () => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode ? JSON.parse(savedMode) : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+
+  const handleTabChange = (tabId) => {
+    setPrevActiveTab(activeTab);
+    setActiveTab(tabId);
+  };
+
+  // Animation variants for tab content sliding
+  const slideVariants = {
+    enter: (direction) => ({
+      x: direction > 0 ? 50 : -50,
+      opacity: 0,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction) => ({
+      x: direction < 0 ? 50 : -50,
+      opacity: 0,
+    }),
+  };
 
   // --- FIX: Add missing state hooks ---
   const [previewData, setPreviewData] = useState([]);
@@ -1001,25 +1023,14 @@ const ISDATA = () => {
     { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' }  
   ];
   const renderTabContent = () => {
-    return (
-      <div className="relative min-h-[600px]">
-        <div className={activeTab === 'config' ? '' : 'hidden'}>
-          <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />
-        </div>
-        <div className={activeTab === 'preview' ? '' : 'hidden'}>
-          <PreviewTab previewData={previewData} isLoading={isLoading} loadPreviewData={loadPreviewData} />
-        </div>
-        <div className={activeTab === 'migration' ? '' : 'hidden'}>
-          <MigrationTab migrationProgress={migrationProgress} migrationLog={migrationLog} startMigration={startMigration} />
-        </div>
-        <div className={activeTab === 'search' ? '' : 'hidden'}>
-          <SearchTab searchFilters={searchFilters} setSearchFilters={setSearchFilters} filterOptions={filterOptions} performSearch={performSearch} isLoading={isLoading} searchResults={searchResults} exportCsv={exportCsv} clearSearchFilters={clearSearchFilters} />
-        </div>
-        <div className={activeTab === 'reports' ? '' : 'hidden'}>
-          <ReportTab />
-        </div>
-      </div>
-    );
+    switch (activeTab) {
+      case 'config': return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
+      case 'preview': return <PreviewTab previewData={previewData} isLoading={isLoading} loadPreviewData={loadPreviewData} />;
+      case 'migration': return <MigrationTab migrationProgress={migrationProgress} migrationLog={migrationLog} startMigration={startMigration} />;
+      case 'search': return <SearchTab searchFilters={searchFilters} setSearchFilters={setSearchFilters} filterOptions={filterOptions} performSearch={performSearch} isLoading={isLoading} searchResults={searchResults} exportCsv={exportCsv} clearSearchFilters={clearSearchFilters} />;
+      case 'reports':return <ReportTab />;
+      default: return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
+    }
   };
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20">
@@ -1028,9 +1039,22 @@ const ISDATA = () => {
       </motion.header>
       <div className="max-w-7xl mx-auto px-6 py-8">
         <motion.div className="flex flex-wrap gap-2 mb-8 bg-white/60 dark:bg-gray-800/60 backdrop-blur-lg rounded-2xl p-2 border border-gray-200/50 dark:border-gray-700/50" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          {tabs.map((tab, index) => { const Icon = tab.icon; return ( <motion.button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${ activeTab === tab.id ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg` : `text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-${tab.color}-100 dark:hover:bg-${tab.color}-700` }`} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}><Icon className="w-5 h-5" />{tab.label}{activeTab === tab.id && ( <motion.div layoutId="activeTab" className={`absolute inset-0 bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 rounded-xl -z-10`} initial={false} transition={{ type: "spring", bounce: 0.2, duration: 0.6 }} /> )}</motion.button> ); })}
+          {tabs.map((tab, index) => { const Icon = tab.icon; return ( <motion.button key={tab.id} onClick={() => handleTabChange(tab.id)} className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${ activeTab === tab.id ? `bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 text-white shadow-lg` : `text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-${tab.color}-100 dark:hover:bg-${tab.color}-700` }`} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }}><Icon className="w-5 h-5" />{tab.label}{activeTab === tab.id && ( <motion.div layoutId="activeTab" className={`absolute inset-0 bg-gradient-to-r from-${tab.color}-500 to-${tab.color}-600 rounded-xl -z-10`} initial={false} transition={{ type: "spring", duration: 0.6 }} /> )}</motion.button> ); })}
         </motion.div>
-        <div className="min-h-[600px]">{renderTabContent()}</div>
+        <AnimatePresence mode="wait" custom={tabs.findIndex(tab => tab.id === activeTab) > tabs.findIndex(tab => tab.id === prevActiveTab) ? 1 : -1}>
+          <motion.div
+            key={activeTab}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            custom={tabs.findIndex(tab => tab.id === activeTab) > tabs.findIndex(tab => tab.id === prevActiveTab) ? 1 : -1}
+            transition={{ type: "tween", ease: "easeInOut", duration: 0.5 }}
+            className="min-h-[600px]"
+          >
+            {renderTabContent()}
+          </motion.div>
+        </AnimatePresence>
       </div>
       <motion.footer initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="mt-16 bg-white/60 dark:bg-gray-900/60 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-700/50">
         <div className="max-w-7xl mx-auto px-6 py-6"><div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400"><p>© 2025 ISDATA - Ring Data ETL & Search Tool</p><div className="flex items-center gap-4"><span>Built with React + Tailwind + Framer Motion</span><div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div><span>System Online</span></div></div></div></div>
