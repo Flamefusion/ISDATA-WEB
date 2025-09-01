@@ -326,7 +326,8 @@ const ReportTab = () => {
       </div>
       <div className="space-y-3">
         {data.length > 0 ? data.map((item, index) => {
-          const yieldRate = item.received > 0 ? ((item.accepted / item.received) * 100).toFixed(1) : 0;
+          const completedRings = item.accepted + item.rejected;
+          const yieldRate = completedRings > 0 ? ((item.accepted / completedRings) * 100).toFixed(1) : 0;
           return (
             <motion.div
               key={index}
@@ -343,20 +344,29 @@ const ReportTab = () => {
                   <span className="text-gray-500 dark:text-gray-400">Received: {item.received}</span>
                   <span className="text-green-600 dark:text-green-400">Accepted: {item.accepted}</span>
                   <span className="text-red-600 dark:text-red-400">Rejected: {item.rejected}</span>
+                  <span className="text-yellow-600 dark:text-yellow-400">Pending: {item.pending || 0}</span>
                   <span className="font-bold text-blue-600 dark:text-blue-400">Yield: {yieldRate}%</span>
                 </div>
                 <div className="relative w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
                   <motion.div
-                    className="bg-green-500 h-2 rounded-full"
+                    className="bg-green-500 h-2 rounded-l-full absolute top-0 left-0"
                     initial={{ width: 0 }}
                     animate={{ width: `${(item.accepted / item.received) * 100}%` }}
                     transition={{ delay: index * 0.1, duration: 0.6 }}
                   />
                   <motion.div
-                    className="bg-red-500 h-2 rounded-r-full absolute top-0 right-0"
+                    className="bg-red-500 h-2 absolute top-0"
+                    style={{ left: `${(item.accepted / item.received) * 100}%` }}
                     initial={{ width: 0 }}
                     animate={{ width: `${(item.rejected / item.received) * 100}%` }}
                     transition={{ delay: index * 0.1 + 0.3, duration: 0.6 }}
+                  />
+                  <motion.div
+                    className="bg-yellow-500 h-2 rounded-r-full absolute top-0"
+                    style={{ left: `${((item.accepted + item.rejected) / item.received) * 100}%` }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${((item.pending || 0) / item.received) * 100}%` }}
+                    transition={{ delay: index * 0.1 + 0.6, duration: 0.6 }}
                   />
                 </div>
               </div>
@@ -395,7 +405,7 @@ const ReportTab = () => {
                 {vendor.yield}%
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-4 gap-4 text-sm">
               <div>
                 <span className="text-gray-500 dark:text-gray-400">Received</span>
                 <p className="font-semibold">{vendor.totalReceived}</p>
@@ -407,6 +417,10 @@ const ReportTab = () => {
               <div>
                 <span className="text-red-600 dark:text-red-400">Rejected</span>
                 <p className="font-semibold">{vendor.totalRejected}</p>
+              </div>
+              <div>
+                <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
+                <p className="font-semibold">{vendor.totalPending || 0}</p>
               </div>
             </div>
             <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
@@ -450,7 +464,7 @@ const ReportTab = () => {
   }
 
   return (
-    <motion.div {...fadeInUp} className="space-y-6">
+    <motion.div variants={fadeInUp} className="space-y-6">
       {/* Header Section */}
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-200/50 dark:border-blue-700/50">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -460,7 +474,7 @@ const ReportTab = () => {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Daily Production Report</h2>
-              <p className="text-gray-600 dark:text-gray-400">Comprehensive daily analytics and yield metrics</p>
+              <p className="text-gray-600 dark:text-gray-400">Real-time tracking with correct VQC/FT logic</p>
             </div>
           </div>
           
@@ -544,8 +558,8 @@ const ReportTab = () => {
           animate="animate"
           className="space-y-6"
         >
-          {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Summary Stats - Updated with Pending */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             <StatCard
               title="Total Received"
               value={reportData.totalReceived.toLocaleString()}
@@ -571,6 +585,14 @@ const ReportTab = () => {
               trend={reportData.trends?.rejected}
             />
             <StatCard
+              title="Total Pending"
+              value={reportData.totalPending ? reportData.totalPending.toLocaleString() : '0'}
+              icon={AlertCircle}
+              color="text-yellow-600"
+              subtitle="awaiting process"
+              trend={reportData.trends?.pending}
+            />
+            <StatCard
               title="Overall Yield"
               value={`${reportData.yield}%`}
               icon={TrendingUp}
@@ -585,7 +607,82 @@ const ReportTab = () => {
             <VendorBreakdown vendors={reportData.vendorBreakdown} />
           )}
 
-          {/* Detailed Breakdown */}
+          {/* Stage-wise Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <motion.div
+              variants={staggerItem}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+            >
+              <div className="flex items-center gap-2 mb-6">
+                <Eye className="w-5 h-5 text-blue-500" />
+                <h4 className="text-lg font-bold text-gray-800 dark:text-white">VQC Stage</h4>
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-green-600 dark:text-green-400">Accepted</span>
+                  <span className="font-bold">{reportData.vqcBreakdown.accepted}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-red-600 dark:text-red-400">Rejected</span>
+                  <span className="font-bold">{reportData.vqcBreakdown.rejected}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
+                  <span className="font-bold">{reportData.vqcBreakdown.pending || 0}</span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={staggerItem}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+            >
+              <div className="flex items-center gap-2 mb-6">
+                <CheckCircle className="w-5 h-5 text-purple-500" />
+                <h4 className="text-lg font-bold text-gray-800 dark:text-white">FT Stage</h4>
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-green-600 dark:text-green-400">Accepted</span>
+                  <span className="font-bold">{reportData.ftBreakdown.accepted}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-red-600 dark:text-red-400">Rejected</span>
+                  <span className="font-bold">{reportData.ftBreakdown.rejected}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
+                  <span className="font-bold">{reportData.ftBreakdown.pending || 0}</span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              variants={staggerItem}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-lg"
+            >
+              <div className="flex items-center gap-2 mb-6">
+                <PieChart className="w-5 h-5 text-indigo-500" />
+                <h4 className="text-lg font-bold text-gray-800 dark:text-white">Final Status</h4>
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-green-600 dark:text-green-400">Accepted</span>
+                  <span className="font-bold">{reportData.totalAccepted}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-red-600 dark:text-red-400">Rejected</span>
+                  <span className="font-bold">{reportData.totalRejected}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
+                  <span className="font-bold">{reportData.totalPending || 0}</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Rejection Reasons */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ReasonCard
               title="VQC Rejection Reasons"
@@ -665,14 +762,26 @@ const ReportTab = () => {
                   
                   <p>
                     <span className="font-semibold">Quality Results:</span> Out of the total received,{' '}
-                    <span className="font-bold text-green-600">{reportData.totalAccepted}</span> rings passed quality checks
-                    and <span className="font-bold text-red-600">{reportData.totalRejected}</span> rings were rejected.
+                    <span className="font-bold text-green-600">{reportData.totalAccepted}</span> rings passed all quality checks,{' '}
+                    <span className="font-bold text-red-600">{reportData.totalRejected}</span> rings were rejected, and{' '}
+                    <span className="font-bold text-yellow-600">{reportData.totalPending || 0}</span> rings are still pending processing.
                   </p>
                   
                   <p>
                     <span className="font-semibold">Overall Yield:</span> The day achieved a yield of{' '}
-                    <span className="font-bold text-purple-600">{reportData.yield}%</span>, indicating{' '}
+                    <span className="font-bold text-purple-600">{reportData.yield}%</span> from completed rings, indicating{' '}
                     {reportData.yield >= 85 ? 'excellent' : reportData.yield >= 75 ? 'good' : reportData.yield >= 65 ? 'acceptable' : 'below target'} performance.
+                    {reportData.totalPending > 0 && (
+                      <span className="text-yellow-600"> Note: {reportData.totalPending} rings are still pending and not included in yield calculation.</span>
+                    )}
+                  </p>
+                  
+                  <p>
+                    <span className="font-semibold">Processing Status:</span> VQC stage processed{' '}
+                    <span className="font-bold">{reportData.vqcBreakdown.accepted + reportData.vqcBreakdown.rejected}</span> rings 
+                    ({reportData.vqcBreakdown.pending || 0} pending), while FT stage processed{' '}
+                    <span className="font-bold">{reportData.ftBreakdown.accepted + reportData.ftBreakdown.rejected}</span> rings 
+                    ({reportData.ftBreakdown.pending || 0} pending).
                   </p>
                   
                   {reportData.vqcBreakdown.rejectionReasons.length > 0 && (

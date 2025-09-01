@@ -694,8 +694,9 @@ def test_sheets_connection():
 
 
 @app.route('/api/reports/daily', methods=['POST'])
+@app.route('/api/reports/daily', methods=['POST'])
 def get_daily_report():
-    """Generates a comprehensive daily production report with vendor-wise analytics."""
+    """Generates a comprehensive daily production report with correct ring status logic."""
     config = request.json
     selected_date = config.get('date')
     selected_vendor = config.get('vendor', 'all')
@@ -714,141 +715,194 @@ def get_daily_report():
             if selected_vendor != 'all':
                 params.append(selected_vendor)
             
-            # Get overall statistics
+            # Get all rings with their VQC and FT data
             cursor.execute(f"""
                 SELECT 
-                    COUNT(*) as total_received,
-                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as total_accepted,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as total_rejected
-                    {", vendor" if selected_vendor == 'all' else ""}
+                    vendor,
+                    serial_number,
+                    mo_number,
+                    sku,
+                    ring_size,
+                    vqc_status,
+                    vqc_reason,
+                    ft_status,
+                    ft_reason,
+                    created_at
                 FROM rings 
                 WHERE {date_condition}{vendor_condition}
-                {f"GROUP BY vendor" if selected_vendor == 'all' else ""}
+                ORDER BY created_at, vendor, serial_number
             """, tuple(params))
             
-            overall_stats = cursor.fetchall()
+            rings_data = cursor.fetchall()
             
-            if not overall_stats:
+            if not rings_data:
                 return jsonify({
                     'date': selected_date,
                     'vendor': selected_vendor,
                     'totalReceived': 0,
                     'totalAccepted': 0,
                     'totalRejected': 0,
+                    'totalPending': 0,
                     'yield': 0,
-                    'vqcBreakdown': {'accepted': 0, 'rejected': 0, 'rejectionReasons': []},
-                    'ftBreakdown': {'accepted': 0, 'rejected': 0, 'rejectionReasons': []},
+                    'vqcBreakdown': {'accepted': 0, 'rejected': 0, 'pending': 0, 'rejectionReasons': []},
+                    'ftBreakdown': {'accepted': 0, 'rejected': 0, 'pending': 0, 'rejectionReasons': []},
                     'hourlyData': [],
                     'vendorBreakdown': []
                 })
             
+            # Process each ring according to the business logic
+            processed_rings = []
+            vendor_stats = {}
+            vqc_rejection_reasons = {}
+            ft_rejection_reasons = {}
+            hourly_stats = {}
+            
+            for ring in rings_data:
+                vendor, serial, mo, sku, size, vqc_status, vqc_reason, ft_status, ft_reason, created_at = ring
+                
+                # Initialize vendor stats if not exists
+                if vendor not in vendor_stats:
+                    vendor_stats[vendor] = {'received': 0, 'accepted': 0, 'rejected': 0, 'pending': 0}
+                
+                # Initialize hourly stats
+                hour = created_at.hour if created_at else 0
+                if hour not in hourly_stats:
+                    hourly_stats[hour] = {'received': 0, 'accepted': 0, 'rejected': 0, 'pending': 0}
+                
+                vendor_stats[vendor]['received'] += 1
+                hourly_stats[hour]['received'] += 1
+                
+                # Apply business logic to determine final status
+                has_vqc_data = vqc_status is not None and str(vqc_status).strip() != ''
+                has_ft_data = ft_status is not None and str(ft_status).strip() != ''
+                
+                final_status = 'Pending'
+                final_reason = ''
+                stage = 'Unknown'
+                
+                if not has_vqc_data and not has_ft_data:
+                    # Neither VQC nor FT data - Pending
+                    final_status = 'Pending'
+                    stage = 'VQC'
+                    
+                elif not has_vqc_data and has_ft_data:
+                    # No VQC data, but FT data exists - Use FT as final
+                    final_status = 'Accepted' if str(ft_status).upper() in ['ACCEPTED', 'PASS'] else 'Rejected'
+                    final_reason = ft_reason if final_status == 'Rejected' else ''
+                    stage = 'FT'
+                    
+                elif has_vqc_data and not has_ft_data:
+                    # VQC data exists, no FT data - VQC is final (FT pending)
+                    final_status = 'Accepted' if str(vqc_status).upper() in ['ACCEPTED', 'PASS'] else 'Rejected'
+                    final_reason = vqc_reason if final_status == 'Rejected' else ''
+                    stage = 'VQC'
+                    
+                else:
+                    # Both VQC and FT data exist - FT is final (only VQC accepted rings go to FT)
+                    final_status = 'Accepted' if str(ft_status).upper() in ['ACCEPTED', 'PASS'] else 'Rejected'
+                    final_reason = ft_reason if final_status == 'Rejected' else ''
+                    stage = 'FT'
+                
+                # Update statistics
+                if final_status == 'Accepted':
+                    vendor_stats[vendor]['accepted'] += 1
+                    hourly_stats[hour]['accepted'] += 1
+                elif final_status == 'Rejected':
+                    vendor_stats[vendor]['rejected'] += 1
+                    hourly_stats[hour]['rejected'] += 1
+                    
+                    # Track rejection reasons
+                    if final_reason and final_reason.strip():
+                        if stage == 'VQC':
+                            vqc_rejection_reasons[final_reason] = vqc_rejection_reasons.get(final_reason, 0) + 1
+                        else:
+                            ft_rejection_reasons[final_reason] = ft_rejection_reasons.get(final_reason, 0) + 1
+                else:
+                    vendor_stats[vendor]['pending'] += 1
+                    hourly_stats[hour]['pending'] += 1
+                
+                processed_rings.append({
+                    'vendor': vendor,
+                    'serial_number': serial,
+                    'mo_number': mo,
+                    'sku': sku,
+                    'ring_size': size,
+                    'vqc_status': vqc_status,
+                    'vqc_reason': vqc_reason,
+                    'ft_status': ft_status,
+                    'ft_reason': ft_reason,
+                    'final_status': final_status,
+                    'final_reason': final_reason,
+                    'stage': stage,
+                    'created_at': created_at
+                })
+            
             # Calculate totals
-            total_received = sum(row[0] for row in overall_stats)
-            total_accepted = sum(row[1] for row in overall_stats)
-            total_rejected = sum(row[2] for row in overall_stats)
-            overall_yield = (total_accepted / total_received * 100) if total_received > 0 else 0
+            total_received = len(processed_rings)
+            total_accepted = sum(stats['accepted'] for stats in vendor_stats.values())
+            total_rejected = sum(stats['rejected'] for stats in vendor_stats.values())
+            total_pending = sum(stats['pending'] for stats in vendor_stats.values())
+            
+            # Calculate yield (excluding pending rings from yield calculation)
+            completed_rings = total_accepted + total_rejected
+            overall_yield = (total_accepted / completed_rings * 100) if completed_rings > 0 else 0
             
             # Prepare vendor breakdown if 'all' is selected
             vendor_breakdown_data = []
             if selected_vendor == 'all':
-                for row in overall_stats:
-                    vendor_name = row[3]  # Vendor is the 4th column when grouped by vendor
-                    vendor_received = row[0]
-                    vendor_accepted = row[1]
-                    vendor_rejected = row[2]
-                    vendor_yield = (vendor_accepted / vendor_received * 100) if vendor_received > 0 else 0
+                for vendor_name, stats in vendor_stats.items():
+                    completed = stats['accepted'] + stats['rejected']
+                    vendor_yield = (stats['accepted'] / completed * 100) if completed > 0 else 0
                     vendor_breakdown_data.append({
                         'vendor': vendor_name,
-                        'totalReceived': vendor_received,
-                        'totalAccepted': vendor_accepted,
-                        'totalRejected': vendor_rejected,
+                        'totalReceived': stats['received'],
+                        'totalAccepted': stats['accepted'],
+                        'totalRejected': stats['rejected'],
+                        'totalPending': stats['pending'],
                         'yield': round(vendor_yield, 2)
                     })
             
-            # Get VQC breakdown
-            cursor.execute(f"""
-                SELECT 
-                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as vqc_accepted,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as vqc_rejected,
-                    vqc_reason,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as reason_count
-                FROM rings 
-                WHERE {date_condition}{vendor_condition}
-                GROUP BY vqc_reason
-                HAVING COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) > 0
-                ORDER BY reason_count DESC
-            """, tuple(params))
-            
-            vqc_data = cursor.fetchall()
-            # Correctly sum accepted and rejected counts from the grouped data
-            vqc_accepted = sum(row[0] for row in vqc_data) if vqc_data else 0
-            vqc_rejected = sum(row[1] for row in vqc_data) if vqc_data else 0
-            
-            vqc_rejection_reasons = []
-            for row in vqc_data:
-                if row[2] and row[3] > 0:  # vqc_reason exists and count > 0
-                    percentage = (row[3] / vqc_rejected * 100) if vqc_rejected > 0 else 0
-                    vqc_rejection_reasons.append({
-                        'reason': row[2],
-                        'count': row[3],
-                        'percentage': round(percentage, 1)
-                    })
-            
-            # Get FT breakdown
-            cursor.execute(f"""
-                SELECT 
-                    COUNT(CASE WHEN ft_status = 'Accepted' THEN 1 END) as ft_accepted,
-                    COUNT(CASE WHEN ft_status != 'Accepted' THEN 1 END) as ft_rejected,
-                    ft_reason,
-                    COUNT(CASE WHEN ft_status != 'Accepted' THEN 1 END) as reason_count
-                FROM rings 
-                WHERE {date_condition}{vendor_condition}
-                GROUP BY ft_reason
-                HAVING COUNT(CASE WHEN ft_status != 'ACCEPTED' THEN 1 END) > 0
-                ORDER BY reason_count DESC
-            """, tuple(params))
-            
-            ft_data = cursor.fetchall()
-            # Correctly sum accepted and rejected counts from the grouped data
-            ft_accepted = sum(row[0] for row in ft_data) if ft_data else 0
-            ft_rejected = sum(row[1] for row in ft_data) if ft_data else 0
-            
-            ft_rejection_reasons = []
-            for row in ft_data:
-                if row[2] and row[3] > 0:  # ft_reason exists and count > 0
-                    percentage = (row[3] / ft_rejected * 100) if ft_rejected > 0 else 0
-                    ft_rejection_reasons.append({
-                        'reason': row[2],
-                        'count': row[3],
-                        'percentage': round(percentage, 1)
-                    })
-            
-            # Get hourly data (simulated based on created_at timestamp)
-            cursor.execute(f"""
-                SELECT 
-                    EXTRACT(HOUR FROM created_at) as hour,
-                    COUNT(*) as received,
-                    COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as accepted,
-                    COUNT(CASE WHEN vqc_status != 'ACCEPTED' THEN 1 END) as rejected
-                FROM rings 
-                WHERE {date_condition}{vendor_condition}
-                GROUP BY EXTRACT(HOUR FROM created_at)
-                ORDER BY hour
-            """, tuple(params))
-            
-            hourly_raw = cursor.fetchall()
-            hourly_data = []
-            for row in hourly_raw:
-                hour = int(row[0]) if row[0] is not None else 0
-                hourly_data.append({
-                    'hour': f"{hour:02d}:00",
-                    'received': row[1],
-                    'accepted': row[2],
-                    'rejected': row[3]
+            # Prepare VQC rejection reasons
+            total_vqc_rejected = sum(vqc_rejection_reasons.values())
+            vqc_rejection_list = []
+            for reason, count in sorted(vqc_rejection_reasons.items(), key=lambda x: x[1], reverse=True):
+                percentage = (count / total_vqc_rejected * 100) if total_vqc_rejected > 0 else 0
+                vqc_rejection_list.append({
+                    'reason': reason,
+                    'count': count,
+                    'percentage': round(percentage, 1)
                 })
             
-            # Get vendor-wise breakdown (if 'all' is selected)
-            vendor_breakdown = vendor_breakdown_data
+            # Prepare FT rejection reasons
+            total_ft_rejected = sum(ft_rejection_reasons.values())
+            ft_rejection_list = []
+            for reason, count in sorted(ft_rejection_reasons.items(), key=lambda x: x[1], reverse=True):
+                percentage = (count / total_ft_rejected * 100) if total_ft_rejected > 0 else 0
+                ft_rejection_list.append({
+                    'reason': reason,
+                    'count': count,
+                    'percentage': round(percentage, 1)
+                })
+            
+            # Prepare hourly data
+            hourly_data = []
+            for hour in sorted(hourly_stats.keys()):
+                hourly_data.append({
+                    'hour': f"{hour:02d}:00",
+                    'received': hourly_stats[hour]['received'],
+                    'accepted': hourly_stats[hour]['accepted'],
+                    'rejected': hourly_stats[hour]['rejected'],
+                    'pending': hourly_stats[hour]['pending']
+                })
+            
+            # Count VQC and FT specific stats for breakdown
+            vqc_accepted = len([r for r in processed_rings if r['vqc_status'] and str(r['vqc_status']).upper() in ['ACCEPTED', 'PASS']])
+            vqc_rejected = len([r for r in processed_rings if r['vqc_status'] and str(r['vqc_status']).upper() not in ['ACCEPTED', 'PASS']])
+            vqc_pending = len([r for r in processed_rings if not r['vqc_status'] or str(r['vqc_status']).strip() == ''])
+            
+            ft_accepted = len([r for r in processed_rings if r['ft_status'] and str(r['ft_status']).upper() in ['ACCEPTED', 'PASS']])
+            ft_rejected = len([r for r in processed_rings if r['ft_status'] and str(r['ft_status']).upper() not in ['ACCEPTED', 'PASS'] and r['ft_status'] and str(r['ft_status']).strip() != ''])
+            ft_pending = len([r for r in processed_rings if not r['ft_status'] or str(r['ft_status']).strip() == ''])
             
             return jsonify({
                 'date': selected_date,
@@ -856,19 +910,22 @@ def get_daily_report():
                 'totalReceived': total_received,
                 'totalAccepted': total_accepted,
                 'totalRejected': total_rejected,
+                'totalPending': total_pending,
                 'yield': round(overall_yield, 2),
                 'vqcBreakdown': {
                     'accepted': vqc_accepted,
                     'rejected': vqc_rejected,
-                    'rejectionReasons': vqc_rejection_reasons
+                    'pending': vqc_pending,
+                    'rejectionReasons': vqc_rejection_list
                 },
                 'ftBreakdown': {
                     'accepted': ft_accepted,
                     'rejected': ft_rejected,
-                    'rejectionReasons': ft_rejection_reasons
+                    'pending': ft_pending,
+                    'rejectionReasons': ft_rejection_list
                 },
                 'hourlyData': hourly_data,
-                'vendorBreakdown': vendor_breakdown
+                'vendorBreakdown': vendor_breakdown_data
             })
         
     except (psycopg2.Error, Exception) as e:
