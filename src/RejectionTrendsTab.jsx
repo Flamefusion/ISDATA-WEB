@@ -6,6 +6,7 @@ const RejectionTrendsTab = ({ vendors }) => {
   const [dateFrom, setDateFrom] = useState('2025-07-01');
   const [dateTo, setDateTo] = useState('2025-07-10');
   const [selectedVendor, setSelectedVendor] = useState('3DE TECH');
+  const [rejectionStage, setRejectionStage] = useState('both'); // 'vqc', 'ft', or 'both'
   const [rejectionData, setRejectionData] = useState([]);
   const [trendsData, setTrendsData] = useState(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -78,7 +79,8 @@ const RejectionTrendsTab = ({ vendors }) => {
         body: JSON.stringify({ 
           dateFrom: dateFrom, 
           dateTo: dateTo, 
-          vendor: selectedVendor 
+          vendor: selectedVendor,
+          rejectionStage: rejectionStage // Pass the selected stage
         })
       });
       
@@ -103,7 +105,8 @@ const RejectionTrendsTab = ({ vendors }) => {
           dateFrom: dateFrom, 
           dateTo: dateTo, 
           vendor: selectedVendor,
-          format: 'csv'
+          format: 'csv',
+          rejectionStage: rejectionStage // Pass the selected stage
         })
       });
       
@@ -162,7 +165,7 @@ const RejectionTrendsTab = ({ vendors }) => {
     if (dateFrom && dateTo && selectedVendor) {
       loadRejectionData();
     }
-  }, [dateFrom, dateTo, selectedVendor]);
+  }, [dateFrom, dateTo, selectedVendor, rejectionStage]);
 
   const sortedData = getSortedData();
 
@@ -185,7 +188,7 @@ const RejectionTrendsTab = ({ vendors }) => {
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                 From Date
@@ -236,28 +239,35 @@ const RejectionTrendsTab = ({ vendors }) => {
               </div>
             </div>
             
+            {/* New Rejection Stage Filter */}
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Rejection Stage
+              </label>
+              <div className="flex items-center gap-1 bg-gray-200 dark:bg-gray-800/90 rounded-xl p-1">
+                {['both', 'vqc', 'ft'].map((stage) => (
+                  <button
+                    key={stage}
+                    onClick={() => setRejectionStage(stage)}
+                    className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors w-full ${
+                      rejectionStage === stage
+                        ? 'bg-white dark:bg-gray-700 text-red-600 shadow-sm'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-300/50 dark:hover:bg-gray-700/50'
+                    }`}
+                  >
+                    {stage.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
             <div className="flex items-end gap-2">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={loadRejectionData}
-                disabled={isLoadingData}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
-              >
-                {isLoadingData ? (
-                  <Loader className="w-5 h-5 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-5 h-5" />
-                )}
-                Load Data
-              </motion.button>
-              
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={exportToCSV}
                 disabled={!rejectionData.length}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
               >
                 <Download className="w-5 h-5" />
                 Export
