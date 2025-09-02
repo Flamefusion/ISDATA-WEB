@@ -1040,7 +1040,358 @@ def export_daily_report():
         if conn:
             return_db_connection(conn)
 
+# Add this endpoint to your app.py file
 
+@app.route('/api/reports/rejection-trends', methods=['POST'])
+def get_rejection_trends():
+    """Generates rejection trends data in spreadsheet format."""
+    config = request.json
+    date_from = config.get('dateFrom')
+    date_to = config.get('dateTo')
+    selected_vendor = config.get('vendor')
+    
+    if not all([date_from, date_to, selected_vendor]):
+        return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            # Generate date range
+            cursor.execute("""
+                SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date as date_col
+            """, (date_from, date_to))
+            date_range = [row[0].strftime('%Y-%m-%d') for row in cursor.fetchall()]
+            
+            # Get rejection data for the date range and vendor
+            cursor.execute("""
+                SELECT 
+                    date,
+                    vendor,
+                    vqc_reason,
+                    ft_reason,
+                    vqc_status,
+                    ft_status
+                FROM rings 
+                WHERE date BETWEEN %s AND %s 
+                AND vendor = %s
+                AND (
+                    (vqc_status IS NOT NULL AND UPPER(vqc_status) NOT IN ('ACCEPTED', 'PASS', '')) 
+                    OR 
+                    (ft_status IS NOT NULL AND UPPER(ft_status) NOT IN ('ACCEPTED', 'PASS', ''))
+                )
+            """, (date_from, date_to, selected_vendor))
+            
+            rejection_records = cursor.fetchall()
+            
+            # Define rejection categories
+            rejection_categories = {
+                'ASSEMBLY': [
+                    'BLACK GLUE',
+                    'ULTRAHUMAN TEXT SMUDGED',
+                    'WHITE PATCH ON BATTERY',
+                    'WHITE PATCH ON INSERT',
+                    'WHITE PATCH ON PCB',
+                    'WHITE PATCH ON TAPE NEAR BATTERY',
+                    'WRONG RX COIL'
+                ],
+                'CASTING': [
+                    'MICRO BUBBLES',
+                    'ALIGNMENT ISSUE',
+                    'DENT ON RESIN',
+                    'DUST INSIDE RESIN',
+                    'RESIN CURING ISSUE',
+                    'SHORT FILL OF RESIN',
+                    'SPM REJECTION',
+                    'TIGHT FIT FOR CHARGE',
+                    'LOOSE FITTING ON CHARGER',
+                    'RESIN SHRINKAGE',
+                    'WRONG MOULD',
+                    'GLOP TOP ISSUE'
+                ],
+                'FUNCTIONAL': [
+                    '100% ISSUE',
+                    '3 SENSOR ISSUE',
+                    'BATTERY ISSUE',
+                    'BLUETOOTH HEIGHT ISSUE',
+                    'CE TAPE ISSUE',
+                    'CHARGING CODE ISSUE',
+                    'COIL THICKNESS ISSUE/BATTERY THICKNESS',
+                    'COMPONENT HEIGHT ISSUE',
+                    'CURRENT ISSUE',
+                    'DISCONNECTING ISSUE',
+                    'HRS BUBBLE',
+                    'HRS COATING HEIGHT ISSUE',
+                    'HRS DOUBLE LIGHT ISSUE',
+                    'HRS HEIGHT ISSUE',
+                    'NO NOTIFICATION IN CDT',
+                    'NOT ADVERTISING (WINGLESS PCB)',
+                    'NOT CHARGING',
+                    'SENSOR ISSUE',
+                    'STC ISSUE',
+                    'R&D REJECTION'
+                ],
+                'POLISHING': [
+                    'IMPROPER RESIN FINISH',
+                    'RESIN DAMAGE',
+                    'RX COIL SCRATCH',
+                    'SCRATCHES ON RESIN',
+                    'SIDE SCRATCH',
+                    'SIDE SCRATCH (EMERY)',
+                    'SHELL COATING REMOVED',
+                    'UNEVEN POLISHING',
+                    'WHITE PATCH ON SHELL AFTER POLISHING',
+                    'SCRATCHES ON SHELL & SIDE SHELL'
+                ],
+                'SHELL': [
+                    'BLACK MARKS ON SHELL',
+                    'DENT ON SHELL',
+                    'DISCOLORATION',
+                    'IRREGULAR SHELL SHAPE',
+                    'SHELL COATING ISSUE',
+                    'WHITE MARKS ON SHELL'
+                ]
+            }
+            
+            # Create a mapping from rejection reason to stage
+            reason_to_stage = {}
+            for stage, reasons in rejection_categories.items():
+                for reason in reasons:
+                    reason_to_stage[reason.upper()] = stage
+            
+            # Initialize data structure for the spreadsheet format
+            trends_data = []
+            
+            # Process each rejection category
+            for stage, rejection_types in rejection_categories.items():
+                for rejection_type in rejection_types:
+                    row_data = {
+                        'stage': stage,
+                        'rejection': rejection_type,
+                        'dateWiseData': {},
+                        'totals': {'total': 0}
+                    }
+                    
+                    # Initialize all dates with 0
+                    for date in date_range:
+                        row_data['dateWiseData'][date] = 0
+                    
+                    # Count rejections for this type across all dates
+                    for record in rejection_records:
+                        record_date, vendor, vqc_reason, ft_reason, vqc_status, ft_status = record
+                        record_date_str = record_date.strftime('%Y-%m-%d')
+                        
+                        # Check if this record matches our rejection type
+                        reasons_to_check = []
+                        if vqc_reason and vqc_reason.strip():
+                            reasons_to_check.append(vqc_reason.strip().upper())
+                        if ft_reason and ft_reason.strip():
+                            reasons_to_check.append(ft_reason.strip().upper())
+                        
+                        for reason in reasons_to_check:
+                            if reason == rejection_type.upper():
+                                if record_date_str in row_data['dateWiseData']:
+                                    row_data['dateWiseData'][record_date_str] += 1
+                                    row_data['totals']['total'] += 1
+                    
+                    trends_data.append(row_data)
+            
+            # Calculate summary statistics
+            total_rejections = sum(row['totals']['total'] for row in trends_data)
+            stage_wise_totals = {}
+            for row in trends_data:
+                stage = row['stage']
+                if stage not in stage_wise_totals:
+                    stage_wise_totals[stage] = 0
+                stage_wise_totals[stage] += row['totals']['total']
+            
+            return jsonify({
+                'dateRange': date_range,
+                'vendor': selected_vendor,
+                'dateFrom': date_from,
+                'dateTo': date_to,
+                'rejectionData': trends_data,
+                'summary': {
+                    'totalRejections': total_rejections,
+                    'stageWiseTotals': stage_wise_totals,
+                    'dateRange': len(date_range)
+                }
+            })
+            
+    except (psycopg2.Error, Exception) as e:
+        app.logger.error(f"Error generating rejection trends: {e}")
+        return jsonify({'error': f'Failed to generate rejection trends: {str(e)}'}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
+@app.route('/api/reports/rejection-trends/export', methods=['POST'])
+def export_rejection_trends():
+    """Exports rejection trends data as CSV or Excel."""
+    config = request.json
+    date_from = config.get('dateFrom')
+    date_to = config.get('dateTo')
+    selected_vendor = config.get('vendor')
+    export_format = config.get('format', 'csv')
+    
+    if not all([date_from, date_to, selected_vendor]):
+        return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
+    
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            # Generate date range
+            cursor.execute("""
+                SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date as date_col
+            """, (date_from, date_to))
+            date_range = [row[0].strftime('%Y-%m-%d') for row in cursor.fetchall()]
+            
+            # Get rejection data (same logic as above but for export)
+            cursor.execute("""
+                SELECT 
+                    date,
+                    vendor,
+                    vqc_reason,
+                    ft_reason,
+                    vqc_status,
+                    ft_status
+                FROM rings 
+                WHERE date BETWEEN %s AND %s 
+                AND vendor = %s
+                AND (
+                    (vqc_status IS NOT NULL AND UPPER(vqc_status) NOT IN ('ACCEPTED', 'PASS', '')) 
+                    OR 
+                    (ft_status IS NOT NULL AND UPPER(ft_status) NOT IN ('ACCEPTED', 'PASS', ''))
+                )
+            """, (date_from, date_to, selected_vendor))
+            
+            rejection_records = cursor.fetchall()
+            
+            # Same rejection categories and processing logic as above
+            rejection_categories = {
+                'ASSEMBLY': ['BLACK GLUE', 'ULTRAHUMAN TEXT SMUDGED', 'WHITE PATCH ON BATTERY', 'WHITE PATCH ON INSERT', 'WHITE PATCH ON PCB', 'WHITE PATCH ON TAPE NEAR BATTERY', 'WRONG RX COIL'],
+                'CASTING': ['MICRO BUBBLES', 'ALIGNMENT ISSUE', 'DENT ON RESIN', 'DUST INSIDE RESIN', 'RESIN CURING ISSUE', 'SHORT FILL OF RESIN', 'SPM REJECTION', 'TIGHT FIT FOR CHARGE', 'LOOSE FITTING ON CHARGER', 'RESIN SHRINKAGE', 'WRONG MOULD', 'GLOP TOP ISSUE'],
+                'FUNCTIONAL': ['100% ISSUE', '3 SENSOR ISSUE', 'BATTERY ISSUE', 'BLUETOOTH HEIGHT ISSUE', 'CE TAPE ISSUE', 'CHARGING CODE ISSUE', 'COIL THICKNESS ISSUE/BATTERY THICKNESS', 'COMPONENT HEIGHT ISSUE', 'CURRENT ISSUE', 'DISCONNECTING ISSUE', 'HRS BUBBLE', 'HRS COATING HEIGHT ISSUE', 'HRS DOUBLE LIGHT ISSUE', 'HRS HEIGHT ISSUE', 'NO NOTIFICATION IN CDT', 'NOT ADVERTISING (WINGLESS PCB)', 'NOT CHARGING', 'SENSOR ISSUE', 'STC ISSUE', 'R&D REJECTION'],
+                'POLISHING': ['IMPROPER RESIN FINISH', 'RESIN DAMAGE', 'RX COIL SCRATCH', 'SCRATCHES ON RESIN', 'SIDE SCRATCH', 'SIDE SCRATCH (EMERY)', 'SHELL COATING REMOVED', 'UNEVEN POLISHING', 'WHITE PATCH ON SHELL AFTER POLISHING', 'SCRATCHES ON SHELL & SIDE SHELL'],
+                'SHELL': ['BLACK MARKS ON SHELL', 'DENT ON SHELL', 'DISCOLORATION', 'IRREGULAR SHELL SHAPE', 'SHELL COATING ISSUE', 'WHITE MARKS ON SHELL']
+            }
+            
+            # Process data into spreadsheet format
+            export_data = []
+            headers = ['Stage', 'Rejection Type'] + [pd.to_datetime(date).strftime('%d-%b-%Y') for date in date_range] + ['Total']
+            
+            for stage, rejection_types in rejection_categories.items():
+                for rejection_type in rejection_types:
+                    row = [stage, rejection_type]
+                    total_count = 0
+                    
+                    for date in date_range:
+                        count = 0
+                        for record in rejection_records:
+                            record_date, vendor, vqc_reason, ft_reason, vqc_status, ft_status = record
+                            record_date_str = record_date.strftime('%Y-%m-%d')
+                            
+                            if record_date_str == date:
+                                reasons_to_check = []
+                                if vqc_reason and vqc_reason.strip():
+                                    reasons_to_check.append(vqc_reason.strip().upper())
+                                if ft_reason and ft_reason.strip():
+                                    reasons_to_check.append(ft_reason.strip().upper())
+                                
+                                if rejection_type.upper() in reasons_to_check:
+                                    count += 1
+                        
+                        row.append(count)
+                        total_count += count
+                    
+                    row.append(total_count)
+                    export_data.append(row)
+            
+            if export_format.lower() == 'csv':
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(headers)
+                writer.writerows(export_data)
+                output.seek(0)
+                
+                filename = f"rejection_trends_{date_from}_to_{date_to}_{selected_vendor}.csv"
+                return Response(
+                    output.getvalue(),
+                    mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"}
+                )
+            
+            elif export_format.lower() == 'excel':
+                df = pd.DataFrame(export_data, columns=headers)
+                output = io.BytesIO()
+                
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Rejection Trends', index=False)
+                    
+                    # Get the workbook and worksheet for formatting
+                    workbook = writer.book
+                    worksheet = writer.sheets['Rejection Trends']
+                    
+                    # Apply some basic formatting
+                    from openpyxl.styles import PatternFill, Font, Alignment
+                    
+                    # Header formatting
+                    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+                    header_font = Font(color="FFFFFF", bold=True)
+                    
+                    for col in range(1, len(headers) + 1):
+                        cell = worksheet.cell(row=1, column=col)
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = Alignment(horizontal="center")
+                    
+                    # Stage column formatting
+                    stage_colors = {
+                        'ASSEMBLY': PatternFill(start_color="E3F2FD", end_color="E3F2FD", fill_type="solid"),
+                        'CASTING': PatternFill(start_color="F3E5F5", end_color="F3E5F5", fill_type="solid"),
+                        'FUNCTIONAL': PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid"),
+                        'POLISHING': PatternFill(start_color="E8F5E8", end_color="E8F5E8", fill_type="solid"),
+                        'SHELL': PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+                    }
+                    
+                    for row_idx, row_data in enumerate(export_data, start=2):
+                        stage = row_data[0]
+                        if stage in stage_colors:
+                            for col in range(1, 3):  # Stage and Rejection Type columns
+                                worksheet.cell(row=row_idx, column=col).fill = stage_colors[stage]
+                    
+                    # Auto-adjust column widths
+                    for column in worksheet.columns:
+                        max_length = 0
+                        column_letter = column[0].column_letter
+                        for cell in column:
+                            try:
+                                if len(str(cell.value)) > max_length:
+                                    max_length = len(str(cell.value))
+                            except:
+                                pass
+                        adjusted_width = min(max_length + 2, 30)
+                        worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                output.seek(0)
+                filename = f"rejection_trends_{date_from}_to_{date_to}_{selected_vendor}.xlsx"
+                
+                return Response(
+                    output.getvalue(),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment;filename={filename}"}
+                )
+            
+            else:
+                return jsonify({'error': 'Invalid export format'}), 400
+                
+    except (psycopg2.Error, Exception) as e:
+        app.logger.error(f"Error generating rejection trends export: {e}")
+        return jsonify({'error': f'Failed to generate rejection trends export: {str(e)}'}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
 
 if __name__ == '__main__':
     init_db_pool()

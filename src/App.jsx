@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import RejectionTrendsTab from './RejectionTrendsTab';
 import { 
   Settings, 
   Database, 
@@ -1100,7 +1101,8 @@ const ISDATA = () => {
     { id: 'preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
     { id: 'migration', label: 'Migration', icon: Upload, color: 'orange' },
     { id: 'search', label: 'Ring Search', icon: Search, color: 'indigo' },
-    { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' }  
+    { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' },
+    { id: 'rejection-trends', label: 'Rejection Trends', icon: TrendingUp, color: 'red' }
   ];
   const tabColorClasses = {
     blue: { active: 'bg-gradient-to-r from-blue-500 to-blue-600', hover: 'hover:bg-blue-100', },
@@ -1108,6 +1110,7 @@ const ISDATA = () => {
     orange: { active: 'bg-gradient-to-r from-orange-500 to-orange-600', hover: 'hover:bg-orange-100', },
     indigo: { active: 'bg-gradient-to-r from-indigo-500 to-indigo-600', hover: 'hover:bg-indigo-100', },
     purple: { active: 'bg-gradient-to-r from-purple-500 to-purple-600', hover: 'hover:bg-purple-100', },
+    red: { active: 'bg-gradient-to-r from-red-500 to-red-600', hover: 'hover:bg-red-100', },
   };
   const renderTabContent = () => {
     switch (activeTab) {
@@ -1127,6 +1130,7 @@ const ISDATA = () => {
                               loadReport={loadReport}
                               exportReport={exportReport}
                              />;
+      case 'rejection-trends': return <RejectionTrendsTab vendors={reportVendors} />;
       default: return <ConfigTab config={config} setConfig={setConfig} isLoading={isLoading} connectionStatus={connectionStatus} testSheetsConnection={testSheetsConnection} testDbConnection={testDbConnection} createSchema={createSchema} clearDatabase={clearDatabase} />;
     }
   };
