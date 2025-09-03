@@ -70,10 +70,20 @@ const ISDATA = () => {
   const [reportError, setReportError] = useState(null);
   const [reportVendors, setReportVendors] = useState(['all']);
 
+  // Helper function to format dates as YYYY-MM-DD
+  const getFormattedDate = (date) => {
+    return date.toISOString().split('T')[0];
+  };
+
+  // Set default dates for Rejection Trends
+  const today = new Date();
+  const tenDaysAgo = new Date();
+  tenDaysAgo.setDate(today.getDate() - 9);
+
   // Rejection Trends state (State Machine)
   const [rejectionTrendsState, setRejectionTrendsState] = useState({
-    dateFrom: '2025-07-01',
-    dateTo: '2025-07-10',
+    dateFrom: getFormattedDate(tenDaysAgo),
+    dateTo: getFormattedDate(today),
     selectedVendor: '3DE TECH',
     rejectionStage: 'both',
     rejectionData: [],
