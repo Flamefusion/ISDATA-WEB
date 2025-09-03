@@ -1,19 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpDown, Calendar, Users, Loader, RefreshCw, Download, TrendingDown, AlertTriangle, BarChart3, FileSpreadsheet } from 'lucide-react';
 
-const RejectionTrendsTab = ({ vendors }) => {
-  const [dateFrom, setDateFrom] = useState('2025-07-01');
-  const [dateTo, setDateTo] = useState('2025-07-10');
-  const [selectedVendor, setSelectedVendor] = useState('3DE TECH');
-  const [rejectionStage, setRejectionStage] = useState('both'); // 'vqc', 'ft', or 'both'
-  const [rejectionData, setRejectionData] = useState([]);
-  const [trendsData, setTrendsData] = useState(null);
-  const [isLoadingData, setIsLoadingData] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+const RejectionTrendsTab = ({ 
+  vendors, 
+  rejectionTrendsState,
+  onStateChange,
+  exportToCSV,
+  loadRejectionData 
+}) => {
+  const {
+    dateFrom,
+    dateTo,
+    selectedVendor,
+    rejectionStage,
+    rejectionData,
+    trendsData,
+    isLoadingData,
+    sortConfig,
+  } = rejectionTrendsState;
 
   // Generate date range for columns
   const generateDateRange = (startDate, endDate) => {
+    if (!startDate || !endDate) return [];
     const dates = [];
     const current = new Date(startDate);
     const end = new Date(endDate);
@@ -33,7 +42,7 @@ const RejectionTrendsTab = ({ vendors }) => {
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
-    setSortConfig({ key, direction });
+    onStateChange('sortConfig', { key, direction });
   };
 
   const getSortedData = () => {
@@ -70,61 +79,7 @@ const RejectionTrendsTab = ({ vendors }) => {
     });
   };
 
-  const loadRejectionData = async () => {
-    setIsLoadingData(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          dateFrom: dateFrom, 
-          dateTo: dateTo, 
-          vendor: selectedVendor,
-          rejectionStage: rejectionStage // Pass the selected stage
-        })
-      });
-      
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      
-      setRejectionData(data.rejectionData);
-      setTrendsData(data.summary);
-    } catch (error) {
-      console.error('Error loading rejection trends:', error);
-      alert(`Failed to load rejection trends: ${error.message}`);
-    }
-    setIsLoadingData(false);
-  };
-
-  const exportToCSV = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          dateFrom: dateFrom, 
-          dateTo: dateTo, 
-          vendor: selectedVendor,
-          format: 'csv',
-          rejectionStage: rejectionStage // Pass the selected stage
-        })
-      });
-      
-      if (!response.ok) throw new Error('Export failed');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `rejection_trends_${dateFrom}_to_${dateTo}_${selectedVendor}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting CSV:', error);
-      alert('Failed to export CSV');
-    }
-  };
+  const sortedData = getSortedData();
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', { 
@@ -161,14 +116,6 @@ const RejectionTrendsTab = ({ vendors }) => {
     </th>
   );
 
-  useEffect(() => {
-    if (dateFrom && dateTo && selectedVendor) {
-      loadRejectionData();
-    }
-  }, [dateFrom, dateTo, selectedVendor, rejectionStage]);
-
-  const sortedData = getSortedData();
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }} 
@@ -197,7 +144,7 @@ const RejectionTrendsTab = ({ vendors }) => {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => onStateChange('dateFrom', e.target.value)}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 transition-all duration-200"
                 />
                 <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
@@ -212,7 +159,7 @@ const RejectionTrendsTab = ({ vendors }) => {
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => onStateChange('dateTo', e.target.value)}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 transition-all duration-200"
                 />
                 <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
@@ -226,7 +173,7 @@ const RejectionTrendsTab = ({ vendors }) => {
               <div className="relative">
                 <select
                   value={selectedVendor}
-                  onChange={(e) => setSelectedVendor(e.target.value)}
+                  onChange={(e) => onStateChange('selectedVendor', e.target.value)}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 transition-all duration-200 appearance-none"
                 >
                   {vendors.filter(v => v !== 'all').map((vendor) => (
@@ -248,7 +195,7 @@ const RejectionTrendsTab = ({ vendors }) => {
                 {['both', 'vqc', 'ft'].map((stage) => (
                   <button
                     key={stage}
-                    onClick={() => setRejectionStage(stage)}
+                    onClick={() => onStateChange('rejectionStage', stage)}
                     className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors w-full ${
                       rejectionStage === stage
                         ? 'bg-white dark:bg-gray-700 text-red-600 shadow-sm'

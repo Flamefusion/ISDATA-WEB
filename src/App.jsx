@@ -70,6 +70,18 @@ const ISDATA = () => {
   const [reportError, setReportError] = useState(null);
   const [reportVendors, setReportVendors] = useState(['all']);
 
+  // Rejection Trends state (State Machine)
+  const [rejectionTrendsState, setRejectionTrendsState] = useState({
+    dateFrom: '2025-07-01',
+    dateTo: '2025-07-10',
+    selectedVendor: '3DE TECH',
+    rejectionStage: 'both',
+    rejectionData: [],
+    trendsData: null,
+    isLoadingData: false,
+    sortConfig: { key: null, direction: 'asc' },
+  });
+
   const handleTabChange = (tabId) => {
     setPrevActiveTab(activeTab);
     setActiveTab(tabId);
@@ -278,7 +290,7 @@ const ISDATA = () => {
 
   const exportReport = async (format) => {
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/export', {
+      const response = await fetch(`http://127.0.0.1:5000/api/reports/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: reportSelectedDate, vendor: reportSelectedVendor, format: format })
@@ -304,6 +316,78 @@ const ISDATA = () => {
       loadReport();
     }
   }, [reportSelectedDate, reportSelectedVendor]);
+
+  // Rejection Trends functions
+  const handleRejectionTrendsChange = (field, value) => {
+    setRejectionTrendsState(prev => ({ ...prev, [field]: value }));
+  };
+
+  const loadRejectionData = async () => {
+    setRejectionTrendsState(prev => ({ ...prev, isLoadingData: true }));
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          dateFrom: rejectionTrendsState.dateFrom, 
+          dateTo: rejectionTrendsState.dateTo, 
+          vendor: rejectionTrendsState.selectedVendor,
+          rejectionStage: rejectionTrendsState.rejectionStage
+        })
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setRejectionTrendsState(prev => ({ ...prev, rejectionData: data.rejectionData, trendsData: data.summary }));
+    } catch (error) {
+      console.error('Error loading rejection trends:', error);
+      setCustomAlert({ message: `Failed to load rejection trends: ${error.message}`, type: 'error' });
+    }
+    setRejectionTrendsState(prev => ({ ...prev, isLoadingData: false }));
+  };
+
+  const exportRejectionTrendsCSV = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          dateFrom: rejectionTrendsState.dateFrom, 
+          dateTo: rejectionTrendsState.dateTo, 
+          vendor: rejectionTrendsState.selectedVendor,
+          format: 'csv',
+          rejectionStage: rejectionTrendsState.rejectionStage
+        })
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rejection_trends_${rejectionTrendsState.dateFrom}_to_${rejectionTrendsState.dateTo}_${rejectionTrendsState.selectedVendor}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting rejection trends CSV:', error);
+      setCustomAlert({ message: 'Failed to export rejection trends CSV', type: 'error' });
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'rejection-trends' && rejectionTrendsState.dateFrom && rejectionTrendsState.dateTo && rejectionTrendsState.selectedVendor) {
+      loadRejectionData();
+    }
+  }, [
+    activeTab, 
+    rejectionTrendsState.dateFrom, 
+    rejectionTrendsState.dateTo, 
+    rejectionTrendsState.selectedVendor, 
+    rejectionTrendsState.rejectionStage
+  ]);
 
   // Animation variants
   const revealVariants = {
@@ -390,7 +474,15 @@ const ISDATA = () => {
           />
         );
       case 'rejection-trends': 
-        return <RejectionTrendsTab vendors={reportVendors} />;
+        return (
+          <RejectionTrendsTab 
+            vendors={reportVendors} 
+            rejectionTrendsState={rejectionTrendsState}
+            onStateChange={handleRejectionTrendsChange}
+            exportToCSV={exportRejectionTrendsCSV}
+            loadRejectionData={loadRejectionData}
+          />
+        );
       default: 
         return (
           <ConfigTab 
