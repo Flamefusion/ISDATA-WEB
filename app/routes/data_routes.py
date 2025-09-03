@@ -40,6 +40,7 @@ def migrate():
     
     def generate():
         def log_callback(message):
+            # This helper is still useful for streaming from the main thread
             yield f"data: {message}\n\n"
 
         # 1. Connect to Google API
@@ -57,15 +58,21 @@ def migrate():
         merged_data = []
         try:
             yield from log_callback("Starting parallel data loading from Google Sheets...")
-            step7_data, vqc_data, ft_data = load_sheets_data_parallel(
-                config, gc, lambda msg: current_app.logger.info(msg)
-            )
-            
+            step7_data, vqc_data, ft_data, load_logs = load_sheets_data_parallel(config, gc)
+
+            # Stream the logs that were generated in the background threads
+            for log_msg in load_logs:
+                yield from log_callback(log_msg)
+
             yield from log_callback("Parallel data loading complete. Starting merge...")
-            merged_data = merge_ring_data_fast(
-                step7_data, vqc_data, ft_data, lambda msg: current_app.logger.info(msg)
-            )
-            yield from log_callback(f"Successfully loaded and merged {len(merged_data)} records.")
+            # Capture the merge logs
+            merged_data, merge_logs = merge_ring_data_fast(step7_data, vqc_data, ft_data)
+
+             # Stream the logs from the merge process
+            for log_msg in merge_logs:
+                yield from log_callback(log_msg)
+           
+            yield from log_callback(f"Successfully processed {len(merged_data)} final records.")
 
         except Exception as e:
             yield from log_callback(f"ERROR: Failed to load or merge data: {e}")

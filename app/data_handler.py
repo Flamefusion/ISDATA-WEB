@@ -3,26 +3,26 @@ import gspread
 from google.oauth2.service_account import Credentials
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def load_sheet_data(sheet_type, config, gc, log_callback):
-    """Load data from Google Sheets based on sheet type."""
+def load_sheet_data(sheet_type, config, gc):
+    """Load data from Google Sheets based on sheet type and return logs."""
+    logs = []
     try:
         if sheet_type == 'step7':
             sheet = gc.open_by_url(config['vendorDataUrl'])
-            ws = sheet.worksheet('Working')  # Assuming worksheet name
-            log_callback(f"Loading {sheet_type} data...")
+            ws = sheet.worksheet('Working')
+            logs.append(f"Loading {sheet_type} data...")
             all_values = ws.get_all_values()
             if not all_values:
-                return 'step7', []
+                return 'step7', [], logs
             headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
             data = [dict(zip(headers, row)) for row in all_values[1:]]
-            log_callback(f"Loaded {len(data)} records from {sheet_type}")
-            return 'step7', data
+            logs.append(f"Loaded {len(data)} records from {sheet_type}")
+            return 'step7', data, logs
         
         elif sheet_type == 'vqc':
             vqc_data = {}
             vqc_sheet = gc.open_by_url(config['vqcDataUrl'])
-            log_callback("Loading VQC data...")
-            # Assuming worksheet names are the vendor names
+            logs.append("Loading VQC data...")
             for vendor in ['IHC', '3DE TECH', 'MAKENICA']:
                 try:
                     ws = vqc_sheet.worksheet(vendor)
@@ -30,28 +30,28 @@ def load_sheet_data(sheet_type, config, gc, log_callback):
                     if all_values:
                         headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
                         vqc_data[vendor] = [dict(zip(headers, row)) for row in all_values[1:]]
-                        log_callback(f"Loaded {len(vqc_data[vendor])} VQC records for {vendor}")
+                        logs.append(f"Loaded {len(vqc_data[vendor])} VQC records for {vendor}")
                 except Exception as e:
-                    log_callback(f"Warning: Could not load VQC sheet for '{vendor}': {e}")
-            return 'vqc', vqc_data
+                    logs.append(f"Warning: Could not load VQC sheet for '{vendor}': {e}")
+            return 'vqc', vqc_data, logs
         
         elif sheet_type == 'ft':
             sheet = gc.open_by_url(config['ftDataUrl'])
-            ws = sheet.worksheet('Working')  # Assuming worksheet name
-            log_callback(f"Loading {sheet_type} data...")
+            ws = sheet.worksheet('Working')
+            logs.append(f"Loading {sheet_type} data...")
             all_values = ws.get_all_values()
             if not all_values:
-                return 'ft', []
+                return 'ft', [], logs
             headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
             data = [dict(zip(headers, row)) for row in all_values[1:]]
-            log_callback(f"Loaded {len(data)} FT records")
-            return 'ft', data
+            logs.append(f"Loaded {len(data)} FT records")
+            return 'ft', data, logs
 
     except Exception as e:
-        log_callback(f"ERROR loading {sheet_type} data: {e}")
+        logs.append(f"ERROR loading {sheet_type} data: {e}")
         if sheet_type == 'vqc':
-            return 'vqc', {}
-        return sheet_type, []
+            return 'vqc', {}, logs
+        return sheet_type, [], logs
 
 def find_column(df, patterns):
     """Find column by matching patterns."""
@@ -63,12 +63,14 @@ def find_column(df, patterns):
                 return col
     return None
 
-def merge_ring_data_fast(step7_data, vqc_data, ft_data, log_callback):
-    """Merge ring data from different sources."""
+def merge_ring_data_fast(step7_data, vqc_data, ft_data):
+    """Merge ring data from different sources and return logs."""
+    logs = []
     if not step7_data:
-        return []
+        return [], ["No Step 7 data provided to merge."]
 
-    log_callback("Reshaping main vendor data...")
+    logs.append("Reshaping main vendor data...")
+
     df_step7 = pd.DataFrame(step7_data)
     vendor_mappings = {
         '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
@@ -104,15 +106,15 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data, log_callback):
             vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip()
             all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
         else:
-            log_callback(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
+            logs.append(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
     
     if not all_vendor_dfs:
         raise ValueError("Could not process any vendor data from Step 7.")
     
     df_main = pd.concat(all_vendor_dfs, ignore_index=True)
-    log_callback(f"Reshaped into {len(df_main)} total records.")
+    logs.append(f"Reshaped into {len(df_main)} total records.")
 
-    log_callback("Preparing VQC and FT data...")
+    logs.append("Preparing VQC and FT data...")
     all_vqc_dfs = [pd.DataFrame(data).assign(vendor=vendor) for vendor, data in vqc_data.items() if data]
     if all_vqc_dfs:
         df_vqc = pd.concat(all_vqc_dfs, ignore_index=True)
@@ -144,7 +146,7 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data, log_callback):
     else:
         df_ft = pd.DataFrame(columns=['serial_number', 'ft_status', 'ft_reason'])
 
-    log_callback("Performing merge...")
+    logs.append("Performing merge...")
     merged_df = pd.merge(df_main, df_vqc, on=['serial_number', 'vendor'], how='left')
     if 'serial_number' in merged_df.columns and 'serial_number' in df_ft.columns:
         merged_df = pd.merge(merged_df, df_ft, on='serial_number', how='left')
@@ -152,34 +154,38 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data, log_callback):
     merged_df.fillna('', inplace=True)
     
     initial_count = len(merged_df)
-    log_callback(f"Successfully merged {initial_count} records. Checking for duplicates...")
+    logs.append(f"Successfully merged {initial_count} records. Checking for duplicates...")
     merged_df.drop_duplicates(subset=['serial_number'], keep='last', inplace=True)
     final_count = len(merged_df)
     duplicates_found = initial_count - final_count
     
     if duplicates_found > 0:
-        log_callback(f"Removed {duplicates_found} duplicate serial number(s). Final record count: {final_count}.")
+        logs.append(f"Removed {duplicates_found} duplicate serial number(s). Final record count: {final_count}.")
     else:
-        log_callback("No duplicate serial numbers found.")
+        logs.append("No duplicate serial numbers found.")
 
-    return merged_df.to_dict('records')
+    return merged_df.to_dict('records'), logs
 
-def load_sheets_data_parallel(config, gc, log_callback):
-    """Load data from multiple sheets in parallel."""
+def load_sheets_data_parallel(config, gc):
+    """Load data from multiple sheets in parallel and return all logs."""
     step7_data, vqc_data, ft_data = [], {}, []
+    all_logs = []
     
     with ThreadPoolExecutor(max_workers=3) as executor:
         futures = []
         if config.get('vendorDataUrl'):
-            futures.append(executor.submit(load_sheet_data, 'step7', config, gc, lambda msg: None))
+            # The lambda is no longer needed
+            futures.append(executor.submit(load_sheet_data, 'step7', config, gc))
         if config.get('vqcDataUrl'):
-            futures.append(executor.submit(load_sheet_data, 'vqc', config, gc, lambda msg: None))
+            futures.append(executor.submit(load_sheet_data, 'vqc', config, gc))
         if config.get('ftDataUrl'):
-            futures.append(executor.submit(load_sheet_data, 'ft', config, gc, lambda msg: None))
+            futures.append(executor.submit(load_sheet_data, 'ft', config, gc))
 
         for future in as_completed(futures):
             try:
-                sheet_type, data = future.result()
+                # Unpack the logs from the result
+                sheet_type, data, logs = future.result()
+                all_logs.extend(logs) # Add the logs to our main list
                 if sheet_type == 'step7':
                     step7_data = data
                 elif sheet_type == 'vqc':
@@ -187,9 +193,9 @@ def load_sheets_data_parallel(config, gc, log_callback):
                 elif sheet_type == 'ft':
                     ft_data = data
             except Exception as e:
-                log_callback(f"A task failed during parallel sheet loading: {e}")
+                all_logs.append(f"A task failed during parallel sheet loading: {e}")
     
-    return step7_data, vqc_data, ft_data
+    return step7_data, vqc_data, ft_data, all_logs # Return the logs
 
 def test_sheets_connection(config):
     """Test connection to Google Sheets."""
