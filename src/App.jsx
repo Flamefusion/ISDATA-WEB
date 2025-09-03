@@ -11,6 +11,7 @@ import {
   Loader,
   XCircle
 } from 'lucide-react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 
 // Import all components
 import ConfigTab from './components/ConfigTab';
@@ -22,9 +23,8 @@ import RejectionTrendsTab from './components/RejectionTrendsTab';
 import CustomAlert from './components/CustomAlert';
 import SettingsPanel from './components/SettingsPanel';
 
-const ISDATA = () => {
-  const [activeTab, setActiveTab] = useState('config');
-  const [prevActiveTab, setPrevActiveTab] = useState(null);
+const App = () => {
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({ db: null, sheets: null });
   const [config, setConfig] = useState({
@@ -91,11 +91,6 @@ const ISDATA = () => {
     isLoadingData: false,
     sortConfig: { key: null, direction: 'asc' },
   });
-
-  const handleTabChange = (tabId) => {
-    setPrevActiveTab(activeTab);
-    setActiveTab(tabId);
-  };
 
   const toggleDarkMode = () => setIsDarkMode(prevMode => !prevMode);
 
@@ -338,7 +333,7 @@ const ISDATA = () => {
       const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dateFrom: rejectionTrendsState.dateFrom, 
           dateTo: rejectionTrendsState.dateTo, 
           vendor: rejectionTrendsState.selectedVendor,
@@ -361,7 +356,7 @@ const ISDATA = () => {
       const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           dateFrom: rejectionTrendsState.dateFrom, 
           dateTo: rejectionTrendsState.dateTo, 
           vendor: rejectionTrendsState.selectedVendor,
@@ -388,11 +383,11 @@ const ISDATA = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'rejection-trends' && rejectionTrendsState.dateFrom && rejectionTrendsState.dateTo && rejectionTrendsState.selectedVendor) {
+    if (location.pathname === '/rejection-trends' && rejectionTrendsState.dateFrom && rejectionTrendsState.dateTo && rejectionTrendsState.selectedVendor) {
       loadRejectionData();
     }
   }, [
-    activeTab, 
+    location.pathname,
     rejectionTrendsState.dateFrom, 
     rejectionTrendsState.dateTo, 
     rejectionTrendsState.selectedVendor, 
@@ -407,12 +402,12 @@ const ISDATA = () => {
   };
 
   const tabs = [ 
-    { id: 'config', label: 'Configuration', icon: Settings, color: 'blue' }, 
-    { id: 'preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
-    { id: 'migration', label: 'Migration', icon: Upload, color: 'orange' },
-    { id: 'search', label: 'Ring Search', icon: Search, color: 'indigo' },
-    { id: 'reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' },
-    { id: 'rejection-trends', label: 'Rejection Trends', icon: TrendingUp, color: 'red' }
+    { id: 'config', path: '/', label: 'Configuration', icon: Settings, color: 'blue' }, 
+    { id: 'preview', path: '/preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
+    { id: 'migration', path: '/migration', label: 'Migration', icon: Upload, color: 'orange' },
+    { id: 'search', path: '/search', label: 'Ring Search', icon: Search, color: 'indigo' },
+    { id: 'reports', path: '/reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' },
+    { id: 'rejection-trends', path: '/rejection-trends', label: 'Rejection Trends', icon: TrendingUp, color: 'red' }
   ];
 
   const tabColorClasses = {
@@ -422,91 +417,6 @@ const ISDATA = () => {
     indigo: { active: 'bg-gradient-to-r from-indigo-500 to-indigo-600', hover: 'hover:bg-indigo-100', },
     purple: { active: 'bg-gradient-to-r from-purple-500 to-purple-600', hover: 'hover:bg-purple-100', },
     red: { active: 'bg-gradient-to-r from-red-500 to-red-600', hover: 'hover:bg-red-100', },
-  };
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'config': 
-        return (
-          <ConfigTab 
-            config={config} 
-            setConfig={setConfig} 
-            isLoading={isLoading} 
-            connectionStatus={connectionStatus} 
-            testSheetsConnection={testSheetsConnection} 
-            testDbConnection={testDbConnection} 
-            createSchema={createSchema} 
-            clearDatabase={clearDatabase} 
-          />
-        );
-      case 'preview': 
-        return (
-          <PreviewTab 
-            previewData={previewData} 
-            isLoading={isLoading} 
-            loadPreviewData={loadPreviewData} 
-          />
-        );
-      case 'migration': 
-        return (
-          <MigrationTab 
-            migrationProgress={migrationProgress} 
-            migrationLog={migrationLog} 
-            startMigration={startMigration} 
-          />
-        );
-      case 'search': 
-        return (
-          <SearchTab 
-            searchFilters={searchFilters} 
-            setSearchFilters={setSearchFilters} 
-            filterOptions={filterOptions} 
-            performSearch={performSearch} 
-            isLoading={isLoading} 
-            searchResults={searchResults} 
-            exportCsv={exportCsv} 
-            clearSearchFilters={clearSearchFilters} 
-          />
-        );
-      case 'reports': 
-        return (
-          <ReportTab 
-            selectedDate={reportSelectedDate}
-            setSelectedDate={setReportSelectedDate}
-            selectedVendor={reportSelectedVendor}
-            setSelectedVendor={setReportSelectedVendor}
-            reportData={reportData}
-            isLoading={reportIsLoading}
-            vendors={reportVendors}
-            error={reportError}
-            loadReport={loadReport}
-            exportReport={exportReport}
-          />
-        );
-      case 'rejection-trends': 
-        return (
-          <RejectionTrendsTab 
-            vendors={reportVendors} 
-            rejectionTrendsState={rejectionTrendsState}
-            onStateChange={handleRejectionTrendsChange}
-            exportToCSV={exportRejectionTrendsCSV}
-            loadRejectionData={loadRejectionData}
-          />
-        );
-      default: 
-        return (
-          <ConfigTab 
-            config={config} 
-            setConfig={setConfig} 
-            isLoading={isLoading} 
-            connectionStatus={connectionStatus} 
-            testSheetsConnection={testSheetsConnection} 
-            testDbConnection={testDbConnection} 
-            createSchema={createSchema} 
-            clearDatabase={clearDatabase} 
-          />
-        );
-    }
   };
 
   return (
@@ -538,46 +448,109 @@ const ISDATA = () => {
           {tabs.map((tab, index) => { 
             const Icon = tab.icon; 
             const color = tab.color;
+            const isActive = location.pathname === tab.path;
             const activeClass = `${tabColorClasses[color]?.active || ''} text-white shadow-lg`;
             const inactiveClass = `text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 ${tabColorClasses[color]?.hover || ''} dark:hover:bg-gray-800`;
             const activeBackgroundClass = `${tabColorClasses[color]?.active || ''} absolute inset-0 rounded-xl -z-10`;
 
             return ( 
-              <motion.button 
-                key={tab.id} 
-                onClick={() => handleTabChange(tab.id)} 
-                className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${activeTab === tab.id ? activeClass : inactiveClass}`} 
-                whileHover={{ scale: 1.02 }} 
-                whileTap={{ scale: 0.98 }} 
-                initial={{ opacity: 0, x: -20 }} 
-                animate={{ opacity: 1, x: 0 }} 
-                transition={{ delay: index * 0.1 }}
-              >
-                <Icon className="w-5 h-5" />
-                {tab.label}
-                {activeTab === tab.id && ( 
-                  <motion.div 
-                    layoutId="activeTab" 
-                    className={activeBackgroundClass} 
-                    initial={false} 
-                    transition={{ type: "spring", duration: 0.6 }} 
-                  /> 
-                )}
-              </motion.button> 
+              <Link to={tab.path} key={tab.id}>
+                <motion.div
+                  className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${isActive ? activeClass : inactiveClass}`}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Icon className="w-5 h-5" />
+                  {tab.label}
+                  {isActive && ( 
+                    <motion.div 
+                      layoutId="activeTab" 
+                      className={activeBackgroundClass}
+                      initial={false}
+                      transition={{ type: "spring", duration: 0.6 }}
+                    /> 
+                  ) }
+                </motion.div>
+              </Link>
             ); 
-          })}
+          }) }
         </motion.div>
 
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeTab}
+            key={location.pathname}
             variants={revealVariants}
             initial="initial"
             animate="center"
             exit="exit"
             className="min-h-[600px]"
           >
-            {renderTabContent()}
+            <Routes location={location}>
+              <Route path="/" element={
+                <ConfigTab 
+                  config={config} 
+                  setConfig={setConfig}
+                  isLoading={isLoading}
+                  connectionStatus={connectionStatus}
+                  testSheetsConnection={testSheetsConnection}
+                  testDbConnection={testDbConnection}
+                  createSchema={createSchema}
+                  clearDatabase={clearDatabase}
+                />
+              } />
+              <Route path="/preview" element={
+                <PreviewTab 
+                  previewData={previewData}
+                  isLoading={isLoading}
+                  loadPreviewData={loadPreviewData}
+                />
+              } />
+              <Route path="/migration" element={
+                <MigrationTab 
+                  migrationProgress={migrationProgress}
+                  migrationLog={migrationLog}
+                  startMigration={startMigration}
+                />
+              } />
+              <Route path="/search" element={
+                <SearchTab 
+                  searchFilters={searchFilters}
+                  setSearchFilters={setSearchFilters}
+                  filterOptions={filterOptions}
+                  performSearch={performSearch}
+                  isLoading={isLoading}
+                  searchResults={searchResults}
+                  exportCsv={exportCsv}
+                  clearSearchFilters={clearSearchFilters}
+                />
+              } />
+              <Route path="/reports" element={
+                <ReportTab 
+                  selectedDate={reportSelectedDate}
+                  setSelectedDate={setReportSelectedDate}
+                  selectedVendor={reportSelectedVendor}
+                  setSelectedVendor={setReportSelectedVendor}
+                  reportData={reportData}
+                  isLoading={reportIsLoading}
+                  vendors={reportVendors}
+                  error={reportError}
+                  loadReport={loadReport}
+                  exportReport={exportReport}
+                />
+              } />
+              <Route path="/rejection-trends" element={
+                <RejectionTrendsTab 
+                  vendors={reportVendors}
+                  rejectionTrendsState={rejectionTrendsState}
+                  onStateChange={handleRejectionTrendsChange}
+                  exportToCSV={exportRejectionTrendsCSV}
+                  loadRejectionData={loadRejectionData}
+                />
+              } />
+            </Routes>
           </motion.div>
         </AnimatePresence>
       </div>
@@ -614,20 +587,20 @@ const ISDATA = () => {
         {customAlert && (
           <CustomAlert 
             message={customAlert.message} 
-            type={customAlert.type} 
-            onClose={() => setCustomAlert(null)} 
+            type={customAlert.type}
+            onClose={() => setCustomAlert(null)}
           />
         )}
       </AnimatePresence>
 
       <SettingsPanel 
-        isOpen={isSettingsPanelOpen} 
-        onClose={() => setIsSettingsPanelOpen(false)} 
-        isDarkMode={isDarkMode} 
-        toggleDarkMode={toggleDarkMode} 
+        isOpen={isSettingsPanelOpen}
+        onClose={() => setIsSettingsPanelOpen(false)}
+        isDarkMode={isDarkMode}
+        toggleDarkMode={toggleDarkMode}
       />
     </div>
   );
 };
 
-export default ISDATA;
+export default App;
