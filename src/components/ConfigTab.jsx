@@ -11,6 +11,17 @@ import {
   RefreshCw 
 } from 'lucide-react';
 
+// Redux
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { 
+  selectConfig, 
+  selectConfigLoading, 
+  selectConnectionStatus 
+} from '../store/selectors';
+import { updateConfig } from '../store/slices/configSlice';
+import { testSheetsConnection, testDbConnection } from '../store/thunks/configThunks';
+import { showAlert } from '../store/slices/uiSlice';
+
 // Animation variants
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -28,16 +39,12 @@ const staggerItem = {
   animate: { opacity: 1, y: 0 }
 };
 
-const ConfigTab = ({ 
-  config, 
-  setConfig, 
-  isLoading, 
-  connectionStatus, 
-  testSheetsConnection, 
-  testDbConnection, 
-  createSchema, 
-  clearDatabase 
-}) => {
+const ConfigTab = () => {
+  const dispatch = useAppDispatch();
+  const config = useAppSelector(selectConfig);
+  const isLoading = useAppSelector(selectConfigLoading);
+  const connectionStatus = useAppSelector(selectConnectionStatus);
+  
   const fileInputRef = useRef(null);
   
   const handleBrowseClick = () => fileInputRef.current.click();
@@ -49,21 +56,68 @@ const ConfigTab = ({
       reader.onload = (e) => {
         try {
           const jsonContent = JSON.parse(e.target.result);
-          setConfig(prev => ({ 
-            ...prev, 
+          dispatch(updateConfig({ 
             serviceAccountFileName: file.name, 
             serviceAccountContent: jsonContent 
           }));
         } catch (error) {
-          alert("Invalid JSON file.");
-          setConfig(prev => ({ 
-            ...prev, 
+          dispatch(showAlert({ 
+            message: "Invalid JSON file.", 
+            type: 'error' 
+          }));
+          dispatch(updateConfig({ 
             serviceAccountFileName: '', 
             serviceAccountContent: '' 
           }));
         }
       };
       reader.readAsText(file);
+    }
+  };
+
+  const handleTestSheetsConnection = () => {
+    dispatch(testSheetsConnection(config));
+  };
+
+  const handleTestDbConnection = () => {
+    dispatch(testDbConnection(config));
+  };
+
+  const handleCreateSchema = async () => {
+    try {
+      const response = await fetch('/api/create-schema', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      
+      if (response.ok) {
+        dispatch(showAlert({ message: 'Schema created successfully!', type: 'success' }));
+      } else {
+        throw new Error('Schema creation failed');
+      }
+    } catch (error) {
+      dispatch(showAlert({ message: 'Schema creation failed', type: 'error' }));
+    }
+  };
+
+  const handleClearDatabase = async () => {
+    if (window.confirm('Are you sure you want to clear all data from the database?')) {
+      try {
+        const response = await fetch('/api/clear-database', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config),
+        });
+        
+        if (response.ok) {
+          dispatch(showAlert({ message: 'Database cleared successfully!', type: 'success' }));
+        } else {
+          throw new Error('Database clear failed');
+        }
+      } catch (error) {
+        dispatch(showAlert({ message: 'Database clear failed', type: 'error' }));
+      }
     }
   };
 
@@ -125,7 +179,7 @@ const ConfigTab = ({
               <input 
                 type="url" 
                 value={config[field]} 
-                onChange={(e) => setConfig(prev => ({ ...prev, [field]: e.target.value }))} 
+                onChange={(e) => dispatch(updateConfig({ [field]: e.target.value }))} 
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-200" 
                 placeholder="https://docs.google.com/spreadsheets/..." 
               />
@@ -136,7 +190,7 @@ const ConfigTab = ({
         <motion.button 
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
-          onClick={testSheetsConnection} 
+          onClick={handleTestSheetsConnection} 
           disabled={isLoading} 
           className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
         >
@@ -197,7 +251,7 @@ const ConfigTab = ({
               <input 
                 type="text" 
                 value={config[item.field]} 
-                onChange={(e) => setConfig(prev => ({ ...prev, [item.field]: e.target.value }))} 
+                onChange={(e) => dispatch(updateConfig({ [item.field]: e.target.value }))} 
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
                 placeholder={item.placeholder} 
               />
@@ -211,7 +265,7 @@ const ConfigTab = ({
             <input 
               type="password" 
               value={config.dbPassword} 
-              onChange={(e) => setConfig(prev => ({ ...prev, dbPassword: e.target.value }))} 
+              onChange={(e) => dispatch(updateConfig({ dbPassword: e.target.value }))} 
               className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
               placeholder="Database password" 
             />
@@ -222,7 +276,7 @@ const ConfigTab = ({
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            onClick={testDbConnection} 
+            onClick={handleTestDbConnection} 
             disabled={isLoading} 
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
           >
@@ -233,7 +287,7 @@ const ConfigTab = ({
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            onClick={createSchema} 
+            onClick={handleCreateSchema} 
             className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
           >
             <RefreshCw className="w-5 h-5" />
@@ -243,7 +297,7 @@ const ConfigTab = ({
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            onClick={clearDatabase} 
+            onClick={handleClearDatabase} 
             className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
           >
             <Database className="w-5 h-5" />

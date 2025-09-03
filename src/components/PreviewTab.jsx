@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Database, RefreshCw, Loader } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { 
+  setPreviewData, 
+  setLoading, 
+  setError,
+  loadPreviewData as loadPreviewDataAction 
+} from '../store/slices/dataSlice';
+import { showAlert } from '../store/slices/uiSlice';
 
 // Animation variants
 const fadeInUp = {
@@ -10,7 +18,10 @@ const fadeInUp = {
   transition: { duration: 0.3 }
 };
 
-const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
+const PreviewTab = () => {
+  const dispatch = useDispatch();
+  const { previewData, isLoading, error } = useSelector((state) => state.data);
+  
   const desiredColumns = [
     'date', 'vendor', 'mo_number', 'serial_number', 'sku', 'ring_size',
     'vqc_status', 'ft_status', 'vqc_reason', 'ft_reason', 'created_at', 'updated_at',
@@ -28,6 +39,80 @@ const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
     }
   }, [previewData]);
 
+  const handleLoadPreviewData = async () => {
+    dispatch(loadPreviewDataAction());
+
+    try {
+      // Simulate API call - replace with your actual API endpoint
+      const response = await fetch('/api/preview-data');
+      
+      if (!response.ok) {
+        throw new Error('Failed to load preview data');
+      }
+
+      // For demo purposes, create some mock data
+      const mockData = [
+        {
+          date: '2024-01-15',
+          vendor: 'Vendor A',
+          mo_number: 'MO001',
+          serial_number: 'RNG000001',
+          sku: 'SKU001',
+          ring_size: '7',
+          vqc_status: 'Pass',
+          ft_status: 'Pass',
+          vqc_reason: '',
+          ft_reason: '',
+          created_at: '2024-01-15 10:00:00',
+          updated_at: '2024-01-15 10:30:00'
+        },
+        {
+          date: '2024-01-15',
+          vendor: 'Vendor B',
+          mo_number: 'MO002',
+          serial_number: 'RNG000002',
+          sku: 'SKU002',
+          ring_size: '8',
+          vqc_status: 'Fail',
+          ft_status: 'Pass',
+          vqc_reason: 'Scratches',
+          ft_reason: '',
+          created_at: '2024-01-15 10:05:00',
+          updated_at: '2024-01-15 10:35:00'
+        },
+        // Add more mock data...
+        ...Array.from({ length: 48 }, (_, i) => ({
+          date: '2024-01-15',
+          vendor: `Vendor ${String.fromCharCode(67 + (i % 5))}`,
+          mo_number: `MO${String(i + 3).padStart(3, '0')}`,
+          serial_number: `RNG${String(i + 3).padStart(6, '0')}`,
+          sku: `SKU${String(i + 3).padStart(3, '0')}`,
+          ring_size: String(6 + (i % 5)),
+          vqc_status: i % 4 === 0 ? 'Fail' : 'Pass',
+          ft_status: i % 5 === 0 ? 'Fail' : 'Pass',
+          vqc_reason: i % 4 === 0 ? ['Scratches', 'Dents', 'Color'][i % 3] : '',
+          ft_reason: i % 5 === 0 ? ['Size Issue', 'Weight Issue'][i % 2] : '',
+          created_at: `2024-01-15 ${String(10 + (i % 8)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00`,
+          updated_at: `2024-01-15 ${String(10 + (i % 8)).padStart(2, '0')}:${String((i + 30) % 60).padStart(2, '0')}:00`
+        }))
+      ];
+
+      dispatch(setPreviewData(mockData));
+      dispatch(showAlert({ 
+        message: `Loaded ${mockData.length} records`, 
+        type: 'success' 
+      }));
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(showAlert({ 
+        message: 'Failed to load preview data', 
+        type: 'error' 
+      }));
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+
   return (
     <motion.div {...fadeInUp} className="space-y-6">
       <div className="flex justify-between items-center">
@@ -35,7 +120,7 @@ const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
         <motion.button 
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
-          onClick={loadPreviewData} 
+          onClick={handleLoadPreviewData} 
           disabled={isLoading} 
           className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
         >
@@ -43,6 +128,18 @@ const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
           Refresh Data
         </motion.button>
       </div>
+
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-xl p-4"
+        >
+          <p className="text-red-600 dark:text-red-400 font-medium">
+            Error: {error}
+          </p>
+        </motion.div>
+      )}
 
       {previewData.length > 0 ? (
         <motion.div 
@@ -87,7 +184,17 @@ const PreviewTab = ({ previewData, isLoading, loadPreviewData }) => {
                         key={col} 
                         className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 font-mono"
                       >
-                        {String(row[col])}
+                        {col.includes('status') ? (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            row[col] === 'Pass' 
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                          }`}>
+                            {row[col]}
+                          </span>
+                        ) : (
+                          String(row[col] || '')
+                        )}
                       </td>
                     ))}
                   </motion.tr>

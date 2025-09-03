@@ -1,605 +1,176 @@
-import React, { useState, useEffect } from 'react';
+// src/App.jsx
+import React, { useEffect } from 'react';
+import { Provider } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Settings, 
-  Database, 
-  Search, 
-  Eye,
-  Upload,
-  BarChart3,
-  TrendingUp,
-  Loader,
-  XCircle
-} from 'lucide-react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
 
-// Import all components
+// Redux Store
+import { store } from './store/store';
+
+// Redux Hooks and Actions
+import { useAppSelector, useAppDispatch } from './store/hooks';
+import {
+  selectIsDarkMode,
+  selectActiveTab,
+  selectIsSettingsPanelOpen,
+  selectCustomAlert,
+} from './store/selectors';
+import {
+  setActiveTab,
+  toggleSettingsPanel,
+  closeSettingsPanel,
+  toggleDarkMode,
+  hideAlert,
+} from './store/slices/uiSlice';
+
+// Components
 import ConfigTab from './components/ConfigTab';
-import PreviewTab from './components/PreviewTab';
 import MigrationTab from './components/MigrationTab';
-import SearchTab from './components/SearchTab';
+import PreviewTab from './components/PreviewTab';
 import ReportTab from './components/ReportTab';
+import SearchTab from './components/SearchTab';
 import RejectionTrendsTab from './components/RejectionTrendsTab';
-import CustomAlert from './components/CustomAlert';
 import SettingsPanel from './components/SettingsPanel';
+import CustomAlert from './components/CustomAlert';
 
-const App = () => {
-  const location = useLocation();
-  const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState({ db: null, sheets: null });
-  const [config, setConfig] = useState({
-    serviceAccountFileName: '',
-    serviceAccountContent: '',
-    vendorDataUrl: '',
-    vqcDataUrl: '',
-    ftDataUrl: '',
-    dbHost: 'localhost',
-    dbPort: '5432',
-    dbName: 'fqc_rings',
-    dbUser: 'postgres',
-    dbPassword: ''
-  });
-  const [customAlert, setCustomAlert] = useState(null);
-  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    return savedMode ? JSON.parse(savedMode) : window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+// App Content Component (to use Redux hooks)
+const AppContent = () => {
+  const dispatch = useAppDispatch();
+  const isDarkMode = useAppSelector(selectIsDarkMode);
+  const activeTab = useAppSelector(selectActiveTab);
+  const isSettingsPanelOpen = useAppSelector(selectIsSettingsPanelOpen);
+  const customAlert = useAppSelector(selectCustomAlert);
 
-  // Data Preview state
-  const [previewData, setPreviewData] = useState([]);
-  
-  // Migration state
-  const [migrationProgress, setMigrationProgress] = useState(0);
-  const [migrationLog, setMigrationLog] = useState([]);
-
-  // Search state
-  const [searchResults, setSearchResults] = useState([]);
-  const [filterOptions, setFilterOptions] = useState({ vendors: [], vqc_statuses: [], ft_statuses: [], reasons: [] });
-  const initialSearchFilters = {
-    serialNumbers: '', moNumbers: '', dateFrom: '', dateTo: '',
-    vendor: [], vqcStatus: [], ftStatus: [], rejectionReason: []
-  };
-  const [searchFilters, setSearchFilters] = useState(initialSearchFilters);
-
-  // Report state
-  const [reportSelectedDate, setReportSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reportSelectedVendor, setReportSelectedVendor] = useState('all');
-  const [reportData, setReportData] = useState(null);
-  const [reportIsLoading, setReportIsLoading] = useState(false);
-  const [reportError, setReportError] = useState(null);
-  const [reportVendors, setReportVendors] = useState(['all']);
-
-  // Helper function to format dates as YYYY-MM-DD
-  const getFormattedDate = (date) => {
-    return date.toISOString().split('T')[0];
-  };
-
-  // Set default dates for Rejection Trends
-  const today = new Date();
-  const tenDaysAgo = new Date();
-  tenDaysAgo.setDate(today.getDate() - 9);
-
-  // Rejection Trends state (State Machine)
-  const [rejectionTrendsState, setRejectionTrendsState] = useState({
-    dateFrom: getFormattedDate(tenDaysAgo),
-    dateTo: getFormattedDate(today),
-    selectedVendor: '3DE TECH',
-    rejectionStage: 'both',
-    rejectionData: [],
-    trendsData: null,
-    isLoadingData: false,
-    sortConfig: { key: null, direction: 'asc' },
-  });
-
-  const toggleDarkMode = () => setIsDarkMode(prevMode => !prevMode);
-
+  // Dark mode effect
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
-  useEffect(() => {
-    const fetchFilterOptions = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:5000/api/search/filters');
-        if (!response.ok) return;
-        const data = await response.json();
-        setFilterOptions(data);
-        setReportVendors(['all', ...data.vendors]);
-      } catch (error) {
-        console.error('Error fetching filter options:', error);
-      }
-    };
-    fetchFilterOptions();
-    loadPreviewData();
-  }, []);
-
-  // API Functions
-  const loadPreviewData = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/data');
-      if (!response.ok) throw new Error('Failed to fetch preview data');
-      const data = await response.json();
-      setPreviewData(data);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    }
-    setIsLoading(false);
-  };
-  
-  const testDbConnection = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/db/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dbHost: config.dbHost, dbPort: config.dbPort, dbName: config.dbName,
-          dbUser: config.dbUser, dbPassword: config.dbPassword
-        })
-      });
-      const data = await response.json();
-      setConnectionStatus(prev => ({ ...prev, db: data.status }));
-      setCustomAlert({ message: data.message, type: data.status });
-    } catch (error) {
-      setConnectionStatus(prev => ({ ...prev, db: 'error' }));
-      setCustomAlert({ message: `Error testing database connection: ${error.message}`, type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  const testSheetsConnection = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/test_sheets_connection', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config)
-      });
-      const data = await response.json();
-      setConnectionStatus(prev => ({ ...prev, sheets: data.status }));
-      setCustomAlert({ message: data.message, type: data.status });
-    } catch (error) {
-      setConnectionStatus(prev => ({ ...prev, sheets: 'error' }));
-      setCustomAlert({ message: `Error testing sheets connection: ${error.message}`, type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  const createSchema = async () => {
-    if (!confirm('This will drop and recreate the \'rings\' table. ALL DATA WILL BE LOST. Are you sure?')) return;
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/db/schema', { method: 'POST' });
-      const data = await response.json();
-      setCustomAlert({ message: data.status === 'success' ? 'Schema created successfully!\n\n' + data.logs.join('\n') : 'Schema creation failed: ' + data.message, type: data.status });
-    } catch (error) {
-      setCustomAlert({ message: `Error creating schema: ${error.message}`, type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  const clearDatabase = async () => {
-    if (!confirm('DANGER: This will permanently delete all data from the \'rings\' table. Are you sure?')) return;
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/db/clear', { method: 'DELETE' });
-      const data = await response.json();
-      setCustomAlert({ message: data.status === 'success' ? data.message : 'Failed to clear database: ' + data.message, type: data.status });
-    } catch (error) {
-      setCustomAlert({ message: `Error clearing database: ${error.message}`, type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  const startMigration = async () => {
-    setMigrationProgress(0);
-    setMigrationLog([ { timestamp: new Date().toLocaleTimeString(), message: "Starting migration..." } ]);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/migrate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(config),
-      });
-      if (!response.body) return;
-      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-      let logCount = 0;
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) { setMigrationProgress(100); break; }
-        const lines = value.split('\n\n').filter(line => line.length > 0);
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const message = line.substring(6);
-            setMigrationLog(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message }]);
-            logCount++;
-            setMigrationProgress(Math.min(99, (logCount / 15) * 100));
-            if (message.includes('Migration completed successfully!')) {
-              loadPreviewData();
-              setMigrationProgress(100);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      setMigrationLog(prev => [...prev, { timestamp: new Date().toLocaleTimeString(), message: `Error: ${error.message}` }]);
-    }
-  };
-
-  const validateAndFormatDates = (filters) => {
-    const formattedFilters = { ...filters };
-    if (formattedFilters.dateFrom) { try { const dateFrom = new Date(formattedFilters.dateFrom + 'T00:00:00'); if (isNaN(dateFrom.getTime())) throw new Error('Invalid dateFrom'); formattedFilters.dateFrom = dateFrom.toISOString().split('T')[0]; } catch (error) { delete formattedFilters.dateFrom; } }
-    if (formattedFilters.dateTo) { try { const dateTo = new Date(formattedFilters.dateTo + 'T00:00:00'); if (isNaN(dateTo.getTime())) throw new Error('Invalid dateTo'); formattedFilters.dateTo = dateTo.toISOString().split('T')[0]; } catch (error) { delete formattedFilters.dateTo; } }
-    if (formattedFilters.dateFrom && formattedFilters.dateTo) { const fromDate = new Date(formattedFilters.dateFrom); const toDate = new Date(formattedFilters.dateTo); if (fromDate > toDate) { return null; } }
-    return formattedFilters;
-  };
-
-  const performSearch = async () => {
-    const validatedFilters = validateAndFormatDates(searchFilters);
-    if (!validatedFilters) { setCustomAlert({ message: 'Invalid date range: "Date From" cannot be later than "Date To"', type: 'error' }); return; }
-    setIsLoading(true);
-    try {
-      const cleanedFilters = Object.entries(validatedFilters).reduce((acc, [key, value]) => {
-        if (value !== '' && value !== null && value !== undefined) {
-          if (Array.isArray(value)) { if (value.length > 0) acc[key] = value; } else { acc[key] = value; }
-        }
-        return acc;
-      }, {});
-      const response = await fetch('http://127.0.0.1:5000/api/search', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(cleanedFilters),
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setSearchResults(data);
-      if (data.length === 0) setCustomAlert({ message: 'No results found for the specified criteria', type: 'error' });
-    } catch (error) {
-      setCustomAlert({ message: `Search failed: ${error.message}`, type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  const exportCsv = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/search/export', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', }, body: JSON.stringify(searchFilters),
-      });
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = "search_results.csv";
-      document.body.appendChild(a); a.click(); a.remove();
-    } catch (error) { console.error('Error exporting CSV:', error); }
-    setIsLoading(false);
-  };
-
-  const clearSearchFilters = () => setSearchFilters(initialSearchFilters);
-
-  // Report functions
-  const loadReport = async () => {
-    setReportIsLoading(true);
-    setReportError(null);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/daily', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: reportSelectedDate, vendor: reportSelectedVendor })
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setReportData(data);
-    } catch (error) {
-      console.error('Error loading report:', error);
-      setReportError(error.message);
-    } finally {
-      setReportIsLoading(false);
-    }
-  };
-
-  const exportReport = async (format) => {
-    try {
-      const response = await fetch(`http://127.0.0.1:5000/api/reports/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: reportSelectedDate, vendor: reportSelectedVendor, format: format })
-      });
-      if (!response.ok) throw new Error('Export failed');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `daily_report_${reportSelectedDate}_${reportSelectedVendor}.${format === 'excel' ? 'xlsx' : 'csv'}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting report:', error);
-      setReportError('Failed to export report');
-    }
-  };
-
-  useEffect(() => {
-    if (reportSelectedDate) {
-      loadReport();
-    }
-  }, [reportSelectedDate, reportSelectedVendor]);
-
-  // Rejection Trends functions
-  const handleRejectionTrendsChange = (field, value) => {
-    setRejectionTrendsState(prev => ({ ...prev, [field]: value }));
-  };
-
-  const loadRejectionData = async () => {
-    setRejectionTrendsState(prev => ({ ...prev, isLoadingData: true }));
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dateFrom: rejectionTrendsState.dateFrom, 
-          dateTo: rejectionTrendsState.dateTo, 
-          vendor: rejectionTrendsState.selectedVendor,
-          rejectionStage: rejectionTrendsState.rejectionStage
-        })
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setRejectionTrendsState(prev => ({ ...prev, rejectionData: data.rejectionData, trendsData: data.summary }));
-    } catch (error) {
-      console.error('Error loading rejection trends:', error);
-      setCustomAlert({ message: `Failed to load rejection trends: ${error.message}`, type: 'error' });
-    }
-    setRejectionTrendsState(prev => ({ ...prev, isLoadingData: false }));
-  };
-
-  const exportRejectionTrendsCSV = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/reports/rejection-trends/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dateFrom: rejectionTrendsState.dateFrom, 
-          dateTo: rejectionTrendsState.dateTo, 
-          vendor: rejectionTrendsState.selectedVendor,
-          format: 'csv',
-          rejectionStage: rejectionTrendsState.rejectionStage
-        })
-      });
-      
-      if (!response.ok) throw new Error('Export failed');
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `rejection_trends_${rejectionTrendsState.dateFrom}_to_${rejectionTrendsState.dateTo}_${rejectionTrendsState.selectedVendor}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error exporting rejection trends CSV:', error);
-      setCustomAlert({ message: 'Failed to export rejection trends CSV', type: 'error' });
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    if (location.pathname === '/rejection-trends' && rejectionTrendsState.dateFrom && rejectionTrendsState.dateTo && rejectionTrendsState.selectedVendor) {
-      loadRejectionData();
-    }
-  }, [
-    location.pathname,
-    rejectionTrendsState.dateFrom, 
-    rejectionTrendsState.dateTo, 
-    rejectionTrendsState.selectedVendor, 
-    rejectionTrendsState.rejectionStage
-  ]);
-
-  // Animation variants
-  const revealVariants = {
-    initial: { opacity: 0, y: 50, scale: 0.9 },
-    center: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 100, damping: 20, duration: 0.7 } },
-    exit: { opacity: 0, y: -50, scale: 0.9, transition: { duration: 0.3 } },
-  };
-
-  const tabs = [ 
-    { id: 'config', path: '/', label: 'Configuration', icon: Settings, color: 'blue' }, 
-    { id: 'preview', path: '/preview', label: 'Data Preview', icon: Eye, color: 'green' }, 
-    { id: 'migration', path: '/migration', label: 'Migration', icon: Upload, color: 'orange' },
-    { id: 'search', path: '/search', label: 'Ring Search', icon: Search, color: 'indigo' },
-    { id: 'reports', path: '/reports', label: 'Daily Reports', icon: BarChart3, color: 'purple' },
-    { id: 'rejection-trends', path: '/rejection-trends', label: 'Rejection Trends', icon: TrendingUp, color: 'red' }
+  // Tab configuration
+  const tabs = [
+    { id: 'config', label: 'Configuration', icon: Database, component: ConfigTab },
+    { id: 'migration', label: 'Migration', icon: RefreshCw, component: MigrationTab },
+    { id: 'preview', label: 'Preview', icon: BarChart3, component: PreviewTab },
+    { id: 'report', label: 'Report', icon: FileText, component: ReportTab },
+    { id: 'search', label: 'Search', icon: Search, component: SearchTab },
+    { id: 'rejectionTrends', label: 'Rejection Trends', icon: TrendingDown, component: RejectionTrendsTab },
   ];
 
-  const tabColorClasses = {
-    blue: { active: 'bg-gradient-to-r from-blue-500 to-blue-600', hover: 'hover:bg-blue-100', },
-    green: { active: 'bg-gradient-to-r from-green-500 to-green-600', hover: 'hover:bg-green-100', },
-    orange: { active: 'bg-gradient-to-r from-orange-500 to-orange-600', hover: 'hover:bg-orange-100', },
-    indigo: { active: 'bg-gradient-to-r from-indigo-500 to-indigo-600', hover: 'hover:bg-indigo-100', },
-    purple: { active: 'bg-gradient-to-r from-purple-500 to-purple-600', hover: 'hover:bg-purple-100', },
-    red: { active: 'bg-gradient-to-r from-red-500 to-red-600', hover: 'hover:bg-red-100', },
-  };
+  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigTab;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-black dark:via-gray-900/[0.3] dark:to-black">
-      <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-white/80 dark:bg-black/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-50">
+    <div className={`min-h-screen transition-all duration-300 ${
+      isDarkMode 
+        ? 'bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white' 
+        : 'bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 text-gray-900'
+    }`}>
+      {/* Alert System */}
+      <AnimatePresence>
+        {customAlert.show && (
+          <CustomAlert 
+            message={customAlert.message} 
+            type={customAlert.type} 
+            onClose={() => dispatch(hideAlert())} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        className="relative bg-white/10 dark:bg-black/20 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30"
+      >
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <motion.div className="flex items-center gap-4" whileHover={{ scale: 1.02 }}>
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Database className="w-7 h-7 text-white" />
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
+                <Database className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">ISDATA</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">Ring Data ETL & Search Tool</p>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  Rings Dashboard
+                </h1>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Production Data Management System
+                </p>
               </div>
-            </motion.div>
-            <motion.div className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-              <div className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-sm font-semibold rounded-full">Online</div>
-              <motion.button whileHover={{ scale: 1.1, rotate: 180 }} whileTap={{ scale: 0.9 }} onClick={() => setIsSettingsPanelOpen(true)} className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                <Settings className="w-5 h-5" />
-              </motion.button>
-            </motion.div>
+            </div>
+            
+            <motion.button 
+              whileHover={{ scale: 1.05 }} 
+              whileTap={{ scale: 0.95 }} 
+              onClick={() => dispatch(toggleSettingsPanel())} 
+              className="p-3 rounded-xl bg-white/10 dark:bg-gray-800/50 backdrop-blur-xl hover:bg-white/20 dark:hover:bg-gray-700/50 transition-all duration-200 border border-white/10 dark:border-gray-700/30"
+            >
+              <Settings className="w-6 h-6" />
+            </motion.button>
           </div>
         </div>
       </motion.header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <motion.div className="flex flex-wrap gap-2 mb-8 bg-white/60 dark:bg-black/95 backdrop-blur-lg rounded-2xl p-2 border border-gray-200/50 dark:border-gray-700/30" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          {tabs.map((tab, index) => { 
-            const Icon = tab.icon; 
-            const color = tab.color;
-            const isActive = location.pathname === tab.path;
-            const activeClass = `${tabColorClasses[color]?.active || ''} text-white shadow-lg`;
-            const inactiveClass = `text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100 ${tabColorClasses[color]?.hover || ''} dark:hover:bg-gray-800`;
-            const activeBackgroundClass = `${tabColorClasses[color]?.active || ''} absolute inset-0 rounded-xl -z-10`;
-
-            return ( 
-              <Link to={tab.path} key={tab.id}>
-                <motion.div
-                  className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-200 relative overflow-hidden ${isActive ? activeClass : inactiveClass}`}
+        {/* Navigation Tabs */}
+        <motion.nav 
+          initial={{ y: 20, opacity: 0 }} 
+          animate={{ y: 0, opacity: 1 }} 
+          transition={{ delay: 0.1 }} 
+          className="mb-8"
+        >
+          <div className="flex flex-wrap gap-2 p-2 bg-white/10 dark:bg-black/20 backdrop-blur-xl rounded-2xl border border-white/20 dark:border-gray-700/30">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              
+              return (
+                <motion.button
+                  key={tab.id}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
+                  onClick={() => dispatch(setActiveTab(tab.id))}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-white/20 dark:hover:bg-gray-800/50'
+                  }`}
                 >
                   <Icon className="w-5 h-5" />
-                  {tab.label}
-                  {isActive && ( 
-                    <motion.div 
-                      layoutId="activeTab" 
-                      className={activeBackgroundClass}
-                      initial={false}
-                      transition={{ type: "spring", duration: 0.6 }}
-                    /> 
-                  ) }
-                </motion.div>
-              </Link>
-            ); 
-          }) }
-        </motion.div>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+        </motion.nav>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            variants={revealVariants}
-            initial="initial"
-            animate="center"
-            exit="exit"
-            className="min-h-[600px]"
-          >
-            <Routes location={location}>
-              <Route path="/" element={
-                <ConfigTab 
-                  config={config} 
-                  setConfig={setConfig}
-                  isLoading={isLoading}
-                  connectionStatus={connectionStatus}
-                  testSheetsConnection={testSheetsConnection}
-                  testDbConnection={testDbConnection}
-                  createSchema={createSchema}
-                  clearDatabase={clearDatabase}
-                />
-              } />
-              <Route path="/preview" element={
-                <PreviewTab 
-                  previewData={previewData}
-                  isLoading={isLoading}
-                  loadPreviewData={loadPreviewData}
-                />
-              } />
-              <Route path="/migration" element={
-                <MigrationTab 
-                  migrationProgress={migrationProgress}
-                  migrationLog={migrationLog}
-                  startMigration={startMigration}
-                />
-              } />
-              <Route path="/search" element={
-                <SearchTab 
-                  searchFilters={searchFilters}
-                  setSearchFilters={setSearchFilters}
-                  filterOptions={filterOptions}
-                  performSearch={performSearch}
-                  isLoading={isLoading}
-                  searchResults={searchResults}
-                  exportCsv={exportCsv}
-                  clearSearchFilters={clearSearchFilters}
-                />
-              } />
-              <Route path="/reports" element={
-                <ReportTab 
-                  selectedDate={reportSelectedDate}
-                  setSelectedDate={setReportSelectedDate}
-                  selectedVendor={reportSelectedVendor}
-                  setSelectedVendor={setReportSelectedVendor}
-                  reportData={reportData}
-                  isLoading={reportIsLoading}
-                  vendors={reportVendors}
-                  error={reportError}
-                  loadReport={loadReport}
-                  exportReport={exportReport}
-                />
-              } />
-              <Route path="/rejection-trends" element={
-                <RejectionTrendsTab 
-                  vendors={reportVendors}
-                  rejectionTrendsState={rejectionTrendsState}
-                  onStateChange={handleRejectionTrendsChange}
-                  exportToCSV={exportRejectionTrendsCSV}
-                  loadRejectionData={loadRejectionData}
-                />
-              } />
-            </Routes>
-          </motion.div>
-        </AnimatePresence>
+        {/* Main Content */}
+        <motion.main 
+          key={activeTab}
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          exit={{ opacity: 0, y: -20 }} 
+          transition={{ duration: 0.3 }}
+        >
+          <ActiveComponent />
+        </motion.main>
       </div>
 
-      <motion.footer initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="mt-16 bg-white/60 dark:bg-black/95 backdrop-blur-lg border-t border-gray-200/50 dark:border-gray-700/30">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300">
-            <p>© 2025 ISDATA - Ring Data ETL & Search Tool</p>
-            <div className="flex items-center gap-4">
-              <span>Built with React + Tailwind + Framer Motion</span>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>System Online</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.footer>
-
-      <AnimatePresence>
-        {isLoading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
-            <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="bg-white dark:bg-black rounded-2xl p-8 shadow-2xl border border-gray-200 dark:border-gray-700/30">
-              <div className="flex items-center gap-4">
-                <Loader className="w-8 h-8 animate-spin text-blue-500" />
-                <span className="text-lg font-semibold text-gray-800 dark:text-gray-100">Processing...</span>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {customAlert && (
-          <CustomAlert 
-            message={customAlert.message} 
-            type={customAlert.type}
-            onClose={() => setCustomAlert(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      <SettingsPanel 
+      {/* Settings Panel */}
+      <SettingsPanel
         isOpen={isSettingsPanelOpen}
-        onClose={() => setIsSettingsPanelOpen(false)}
+        onClose={() => dispatch(closeSettingsPanel())}
         isDarkMode={isDarkMode}
-        toggleDarkMode={toggleDarkMode}
+        toggleDarkMode={() => dispatch(toggleDarkMode())}
       />
     </div>
+  );
+};
+
+// Main App Component with Redux Provider
+const App = () => {
+  return (
+    <Provider store={store}>
+      <AppContent />
+    </Provider>
   );
 };
 
