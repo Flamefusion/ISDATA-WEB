@@ -1,5 +1,6 @@
 // src/store/slices/reportSlice.js
 import { createSlice } from '@reduxjs/toolkit';
+import { loadReport, loadVendors } from '../thunks/reportThunks';
 
 const initialState = {
   reportData: null,
@@ -14,43 +15,42 @@ const reportSlice = createSlice({
   name: 'report',
   initialState,
   reducers: {
-    setReportData: (state, action) => {
-      state.reportData = action.payload;
-    },
     setSelectedDate: (state, action) => {
       state.selectedDate = action.payload;
     },
     setSelectedVendor: (state, action) => {
       state.selectedVendor = action.payload;
     },
-    setVendors: (state, action) => {
-      state.vendors = action.payload;
-    },
-    setLoading: (state, action) => {
-      state.isLoading = action.payload;
-    },
-    setError: (state, action) => {
-      state.error = action.payload;
-    },
     clearReport: (state) => {
       state.reportData = null;
       state.error = null;
     },
-    loadReport: (state) => {
-      state.isLoading = true;
-      state.error = null;
-    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(loadReport.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.reportData = null;
+      })
+      .addCase(loadReport.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.reportData = action.payload;
+      })
+      .addCase(loadReport.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(loadVendors.fulfilled, (state, action) => {
+        state.vendors = action.payload;
+      });
   },
 });
 
 export const {
-  setReportData,
   setSelectedDate,
   setSelectedVendor,
-  setVendors,
-  setLoading,
-  setError,
   clearReport,
-  loadReport,
 } = reportSlice.actions;
+
 export default reportSlice.reducer;

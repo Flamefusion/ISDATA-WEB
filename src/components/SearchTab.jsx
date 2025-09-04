@@ -1,4 +1,3 @@
-// src/components/SearchTab.jsx - Updated with Redux
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -12,14 +11,13 @@ import {
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   updateSearchFilters,
-  setSearchResults,
-  setFilterOptions,
-  setLoading,
-  setError,
-  clearSearchFilters as clearFiltersAction,
-  performSearch as performSearchAction
+  clearSearchFilters,
 } from '../store/slices/searchSlice';
-import { showAlert } from '../store/slices/uiSlice';
+import { 
+  performSearch, 
+  loadFilterOptions, 
+  exportSearchResults 
+} from '../store/thunks/searchThunks';
 import MultiSelectMenu from './MultiSelectMenu';
 
 // Animation variants
@@ -40,146 +38,24 @@ const SearchTab = () => {
     error 
   } = useSelector((state) => state.search);
 
-  // Load filter options on component mount
   useEffect(() => {
-    loadFilterOptions();
-  }, []);
+    dispatch(loadFilterOptions());
+  }, [dispatch]);
 
-  const loadFilterOptions = async () => {
-    try {
-      // Mock data for filter options - replace with your API call
-      const mockOptions = {
-        vendors: ['Vendor A', 'Vendor B', 'Vendor C', 'Vendor D', 'Vendor E'],
-        vqc_statuses: ['Pass', 'Fail'],
-        ft_statuses: ['Pass', 'Fail'],
-        reasons: ['Scratches', 'Dents', 'Color Issue', 'Size Issue', 'Weight Issue', 'Polish Issue']
-      };
-      
-      dispatch(setFilterOptions(mockOptions));
-    } catch (err) {
-      console.error('Failed to load filter options:', err);
-    }
-  };
-
-  const handlePerformSearch = async () => {
-    dispatch(performSearchAction());
-
-    try {
-      // Mock search - replace with your actual API call
-      const mockResults = [
-        {
-          serial_number: 'RNG000001',
-          mo_number: 'MO001',
-          vendor: 'Vendor A',
-          date: '2024-01-15',
-          vqc_status: 'Pass',
-          ft_status: 'Pass',
-        },
-        {
-          serial_number: 'RNG000002',
-          mo_number: 'MO002',
-          vendor: 'Vendor B',
-          date: '2024-01-15',
-          vqc_status: 'Fail',
-          ft_status: 'Pass',
-        },
-        // Generate more mock results based on filters
-        ...Array.from({ length: 18 }, (_, i) => ({
-          serial_number: `RNG${String(i + 3).padStart(6, '0')}`,
-          mo_number: `MO${String(i + 3).padStart(3, '0')}`,
-          vendor: filterOptions.vendors[i % filterOptions.vendors.length] || 'Vendor A',
-          date: '2024-01-15',
-          vqc_status: i % 3 === 0 ? 'Fail' : 'Pass',
-          ft_status: i % 4 === 0 ? 'Fail' : 'Pass',
-        }))
-      ];
-
-      // Filter results based on search filters (basic filtering)
-      let filteredResults = mockResults;
-
-      if (searchFilters.serialNumbers) {
-        const serialNumbers = searchFilters.serialNumbers.split(',').map(s => s.trim());
-        filteredResults = filteredResults.filter(result => 
-          serialNumbers.some(sn => result.serial_number.includes(sn))
-        );
-      }
-
-      if (searchFilters.vendor.length > 0) {
-        filteredResults = filteredResults.filter(result => 
-          searchFilters.vendor.includes(result.vendor)
-        );
-      }
-
-      if (searchFilters.vqcStatus.length > 0) {
-        filteredResults = filteredResults.filter(result => 
-          searchFilters.vqcStatus.includes(result.vqc_status)
-        );
-      }
-
-      if (searchFilters.ftStatus.length > 0) {
-        filteredResults = filteredResults.filter(result => 
-          searchFilters.ftStatus.includes(result.ft_status)
-        );
-      }
-
-      dispatch(setSearchResults(filteredResults));
-      dispatch(showAlert({ 
-        message: `Found ${filteredResults.length} matching records`, 
-        type: 'success' 
-      }));
-    } catch (err) {
-      dispatch(setError(err.message));
-      dispatch(showAlert({ 
-        message: 'Search failed', 
-        type: 'error' 
-      }));
-    } finally {
-      dispatch(setLoading(false));
-    }
+  const handlePerformSearch = () => {
+    dispatch(performSearch(searchFilters));
   };
 
   const handleClearFilters = () => {
-    dispatch(clearFiltersAction());
-    dispatch(showAlert({ 
-      message: 'Search filters cleared', 
-      type: 'success' 
-    }));
+    dispatch(clearSearchFilters());
   };
 
   const handleExportCsv = () => {
-    if (searchResults.length === 0) {
-      dispatch(showAlert({ 
-        message: 'No data to export', 
-        type: 'error' 
-      }));
-      return;
+    if (searchResults.length > 0) {
+      dispatch(exportSearchResults(searchFilters));
     }
-
-    // Create CSV content
-    const headers = Object.keys(searchResults[0]);
-    const csvContent = [
-      headers.join(','),
-      ...searchResults.map(row => 
-        headers.map(header => `"${row[header] || ''}"`).join(',')
-      )
-    ].join('\n');
-
-    // Download CSV
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `search_results_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    dispatch(showAlert({ 
-      message: 'CSV exported successfully', 
-      type: 'success' 
-    }));
   };
+
 
   return (
     <motion.div {...fadeInUp} className="space-y-6">

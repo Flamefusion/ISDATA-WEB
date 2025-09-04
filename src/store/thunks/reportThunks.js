@@ -1,49 +1,81 @@
 // src/store/thunks/reportThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { 
-  setReportData, 
-  setVendors, 
-  setLoading, 
-  setError 
-} from '../slices/reportSlice';
 import { showAlert } from '../slices/uiSlice';
 
 export const loadReport = createAsyncThunk(
   'report/loadReport',
-  async ({ selectedDate, selectedVendor }, { dispatch }) => {
-    dispatch(setLoading(true));
+  async ({ selectedDate, selectedVendor }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/report', {
+      const response = await fetch('/api/reports/daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor }),
       });
       
-      if (!response.ok) throw new Error('Failed to load report');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to load report');
+      }
       
       const data = await response.json();
-      dispatch(setReportData(data));
       dispatch(showAlert({ message: 'Report generated successfully', type: 'success' }));
+      return data;
     } catch (error) {
-      dispatch(setError(error.message));
-      dispatch(showAlert({ message: 'Failed to generate report', type: 'error' }));
-    } finally {
-      dispatch(setLoading(false));
+      dispatch(showAlert({ message: `Failed to generate report: ${error.message}`, type: 'error' }));
+      return rejectWithValue(error.message);
     }
   }
 );
 
 export const loadVendors = createAsyncThunk(
   'report/loadVendors',
-  async (_, { dispatch }) => {
+  async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/vendors');
-      if (!response.ok) throw new Error('Failed to load vendors');
-      
-      const vendors = await response.json();
-      dispatch(setVendors(vendors));
+      const response = await fetch('/api/search/filters');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to load vendors');
+      }
+      const options = await response.json();
+      return ['all', ...(options.vendors || [])];
     } catch (error) {
       console.error('Failed to load vendors:', error);
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const exportReport = createAsyncThunk(
+  'report/exportReport',
+  async ({ selectedDate, selectedVendor, format }, { dispatch, rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/reports/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: selectedDate, vendor: selectedVendor, format }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const extension = format === 'excel' ? 'xlsx' : 'csv';
+      a.download = `daily_report_${selectedDate}_${selectedVendor}.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      dispatch(showAlert({ message: `Report exported as ${format.toUpperCase()} successfully`, type: 'success' }));
+      return; // Indicate success
+    } catch (error) {
+      dispatch(showAlert({ message: `Export failed: ${error.message}`, type: 'error' }));
+      return rejectWithValue(error.message);
     }
   }
 );

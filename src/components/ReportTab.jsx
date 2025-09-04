@@ -1,4 +1,3 @@
-// src/components/ReportTab.jsx - Updated with Redux
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -20,16 +19,10 @@ import {
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
-  setReportData,
   setSelectedDate,
   setSelectedVendor,
-  setVendors,
-  setLoading,
-  setError,
-  clearReport,
-  loadReport as loadReportAction
 } from '../store/slices/reportSlice';
-import { showAlert } from '../store/slices/uiSlice';
+import { loadReport, loadVendors, exportReport } from '../store/thunks/reportThunks';
 
 // Animation variants
 const staggerContainer = {
@@ -52,157 +45,20 @@ const ReportTab = () => {
     error 
   } = useSelector((state) => state.report);
 
-  // Load vendors on component mount
   useEffect(() => {
-    loadVendors();
-  }, []);
+    dispatch(loadVendors());
+  }, [dispatch]);
 
-  const loadVendors = async () => {
-    try {
-      // Mock vendors - replace with your API call
-      const mockVendors = ['all', 'Vendor A', 'Vendor B', 'Vendor C', 'Vendor D', 'Vendor E'];
-      dispatch(setVendors(mockVendors));
-    } catch (err) {
-      console.error('Failed to load vendors:', err);
-    }
-  };
-
-  const handleLoadReport = async () => {
-    dispatch(loadReportAction());
-
-    try {
-      // Mock report data - replace with your API call
-      const mockReportData = {
-        totalReceived: 1250,
-        totalAccepted: 1087,
-        totalRejected: 163,
-        totalPending: 0,
-        yield: 87,
-        vqcBreakdown: {
-          accepted: 1100,
-          rejected: 150,
-          pending: 0,
-          rejectionReasons: [
-            { reason: 'Scratches', count: 65, percentage: 43.3 },
-            { reason: 'Dents', count: 42, percentage: 28.0 },
-            { reason: 'Color Issue', count: 28, percentage: 18.7 },
-            { reason: 'Polish Issue', count: 15, percentage: 10.0 }
-          ]
-        },
-        ftBreakdown: {
-          accepted: 1063,
-          rejected: 37,
-          pending: 0,
-          rejectionReasons: [
-            { reason: 'Size Issue', count: 20, percentage: 54.1 },
-            { reason: 'Weight Issue', count: 17, percentage: 45.9 }
-          ]
-        },
-        vendorBreakdown: selectedVendor === 'all' ? [
-          { vendor: 'Vendor A', totalReceived: 300, totalAccepted: 261, totalRejected: 39, totalPending: 0, yield: 87 },
-          { vendor: 'Vendor B', totalReceived: 275, totalAccepted: 240, totalRejected: 35, totalPending: 0, yield: 87.3 },
-          { vendor: 'Vendor C', totalReceived: 225, totalAccepted: 196, totalRejected: 29, totalPending: 0, yield: 87.1 },
-          { vendor: 'Vendor D', totalReceived: 250, totalAccepted: 218, totalRejected: 32, totalPending: 0, yield: 87.2 },
-          { vendor: 'Vendor E', totalReceived: 200, totalAccepted: 172, totalRejected: 28, totalPending: 0, yield: 86 }
-        ] : [],
-        hourlyData: [
-          { hour: '08:00', received: 85, accepted: 74, rejected: 11, pending: 0 },
-          { hour: '09:00', received: 92, accepted: 80, rejected: 12, pending: 0 },
-          { hour: '10:00', received: 105, accepted: 92, rejected: 13, pending: 0 },
-          { hour: '11:00', received: 98, accepted: 85, rejected: 13, pending: 0 },
-          { hour: '12:00', received: 75, accepted: 65, rejected: 10, pending: 0 },
-          { hour: '13:00', received: 110, accepted: 96, rejected: 14, pending: 0 },
-          { hour: '14:00', received: 125, accepted: 109, rejected: 16, pending: 0 },
-          { hour: '15:00', received: 118, accepted: 103, rejected: 15, pending: 0 },
-          { hour: '16:00', received: 102, accepted: 89, rejected: 13, pending: 0 },
-          { hour: '17:00', received: 95, accepted: 82, rejected: 13, pending: 0 },
-          { hour: '18:00', received: 88, accepted: 77, rejected: 11, pending: 0 },
-          { hour: '19:00', received: 107, accepted: 93, rejected: 14, pending: 0 }
-        ]
-      };
-
-      dispatch(setReportData(mockReportData));
-      dispatch(showAlert({ 
-        message: 'Report generated successfully', 
-        type: 'success' 
-      }));
-    } catch (err) {
-      dispatch(setError(err.message));
-      dispatch(showAlert({ 
-        message: 'Failed to generate report', 
-        type: 'error' 
-      }));
-    } finally {
-      dispatch(setLoading(false));
+  const handleLoadReport = () => {
+    if (selectedDate) {
+      dispatch(loadReport({ selectedDate, selectedVendor }));
     }
   };
 
   const handleExportReport = (format) => {
-    if (!reportData) {
-      dispatch(showAlert({ 
-        message: 'No report data to export', 
-        type: 'error' 
-      }));
-      return;
+    if (reportData) {
+      dispatch(exportReport({ selectedDate, selectedVendor, format }));
     }
-
-    // Create export data
-    const exportData = {
-      date: selectedDate,
-      vendor: selectedVendor,
-      summary: {
-        totalReceived: reportData.totalReceived,
-        totalAccepted: reportData.totalAccepted,
-        totalRejected: reportData.totalRejected,
-        yield: reportData.yield
-      },
-      vqcBreakdown: reportData.vqcBreakdown,
-      ftBreakdown: reportData.ftBreakdown
-    };
-
-    if (format === 'csv') {
-      // Create CSV content
-      const csvRows = [
-        ['Metric', 'Value'],
-        ['Date', selectedDate],
-        ['Vendor', selectedVendor],
-        ['Total Received', reportData.totalReceived],
-        ['Total Accepted', reportData.totalAccepted],
-        ['Total Rejected', reportData.totalRejected],
-        ['Overall Yield (%)', reportData.yield],
-        [''],
-        ['VQC Breakdown'],
-        ['VQC Accepted', reportData.vqcBreakdown.accepted],
-        ['VQC Rejected', reportData.vqcBreakdown.rejected],
-        [''],
-        ['FT Breakdown'],
-        ['FT Accepted', reportData.ftBreakdown.accepted],
-        ['FT Rejected', reportData.ftBreakdown.rejected]
-      ];
-
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `report_${selectedDate}_${selectedVendor}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else if (format === 'excel') {
-      // For Excel export, you would typically use a library like xlsx
-      // For now, we'll just show an alert
-      dispatch(showAlert({ 
-        message: 'Excel export feature coming soon', 
-        type: 'info' 
-      }));
-    }
-
-    dispatch(showAlert({ 
-      message: `Report exported successfully as ${format.toUpperCase()}`, 
-      type: 'success' 
-    }));
   };
 
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (

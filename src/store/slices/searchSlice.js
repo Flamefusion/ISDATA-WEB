@@ -1,5 +1,5 @@
-// src/store/slices/searchSlice.js
 import { createSlice } from '@reduxjs/toolkit';
+import { performSearch, loadFilterOptions } from '../thunks/searchThunks';
 
 const initialSearchFilters = {
   serialNumbers: '',
@@ -17,8 +17,8 @@ const initialState = {
   searchResults: [],
   filterOptions: {
     vendors: [],
-    vqc_statuses: ['Pass', 'Fail'],
-    ft_statuses: ['Pass', 'Fail'],
+    vqc_statuses: [],
+    ft_statuses: [],
     reasons: [],
   },
   isLoading: false,
@@ -32,40 +32,31 @@ const searchSlice = createSlice({
     updateSearchFilters: (state, action) => {
       state.searchFilters = { ...state.searchFilters, ...action.payload };
     },
-    setSearchResults: (state, action) => {
-      state.searchResults = action.payload;
-    },
-    setFilterOptions: (state, action) => {
-      state.filterOptions = { ...state.filterOptions, ...action.payload };
-    },
-    setLoading: (state, action) => {
-      state.isLoading = action.payload;
-    },
-    setError: (state, action) => {
-      state.error = action.payload;
-    },
     clearSearchFilters: (state) => {
       state.searchFilters = initialSearchFilters;
-    },
-    clearSearchResults: (state) => {
       state.searchResults = [];
       state.error = null;
     },
-    performSearch: (state) => {
-      state.isLoading = true;
-      state.error = null;
-    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(performSearch.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(performSearch.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.searchResults = action.payload;
+      })
+      .addCase(performSearch.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.error.message;
+      })
+      .addCase(loadFilterOptions.fulfilled, (state, action) => {
+        state.filterOptions = action.payload;
+      });
   },
 });
 
-export const {
-  updateSearchFilters,
-  setSearchResults,
-  setFilterOptions,
-  setLoading,
-  setError,
-  clearSearchFilters,
-  clearSearchResults,
-  performSearch,
-} = searchSlice.actions;
+export const { updateSearchFilters, clearSearchFilters } = searchSlice.actions;
 export default searchSlice.reducer;

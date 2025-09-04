@@ -1,17 +1,10 @@
 // src/store/thunks/searchThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { 
-  setSearchResults, 
-  setFilterOptions, 
-  setLoading, 
-  setError 
-} from '../slices/searchSlice';
 import { showAlert } from '../slices/uiSlice';
 
 export const performSearch = createAsyncThunk(
   'search/performSearch',
-  async (searchFilters, { dispatch }) => {
-    dispatch(setLoading(true));
+  async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -25,25 +18,21 @@ export const performSearch = createAsyncThunk(
       }
       
       const results = await response.json();
-      dispatch(setSearchResults(results));
       dispatch(showAlert({ 
         message: `Found ${results.length} matching records`, 
         type: 'success' 
       }));
       return results;
     } catch (error) {
-      dispatch(setError(error.message));
       dispatch(showAlert({ message: `Search failed: ${error.message}`, type: 'error' }));
-      throw error;
-    } finally {
-      dispatch(setLoading(false));
+      return rejectWithValue(error.message);
     }
   }
 );
 
 export const loadFilterOptions = createAsyncThunk(
   'search/loadFilterOptions',
-  async (_, { dispatch }) => {
+  async (_, { rejectWithValue }) => {
     try {
       const response = await fetch('/api/search/filters');
       if (!response.ok) {
@@ -52,19 +41,17 @@ export const loadFilterOptions = createAsyncThunk(
       }
       
       const options = await response.json();
-      dispatch(setFilterOptions(options));
       return options;
     } catch (error) {
       console.error('Failed to load filter options:', error);
-      dispatch(showAlert({ message: `Failed to load filter options: ${error.message}`, type: 'error' }));
-      throw error;
+      return rejectWithValue(error.message);
     }
   }
 );
 
 export const exportSearchResults = createAsyncThunk(
   'search/exportSearchResults',
-  async (searchFilters, { dispatch }) => {
+  async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
       const response = await fetch('/api/search/export', {
         method: 'POST',
@@ -92,7 +79,7 @@ export const exportSearchResults = createAsyncThunk(
     } catch (error) {
       console.error('Export failed:', error);
       dispatch(showAlert({ message: `Export failed: ${error.message}`, type: 'error' }));
-      throw error;
+      return rejectWithValue(error.message);
     }
   }
 );
