@@ -3,7 +3,6 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   isDarkMode: false,
-  activeTab: 'config',
   isSettingsPanelOpen: false,
   customAlert: {
     show: false,
@@ -21,9 +20,6 @@ const uiSlice = createSlice({
     },
     setDarkMode: (state, action) => {
       state.isDarkMode = action.payload;
-    },
-    setActiveTab: (state, action) => {
-      state.activeTab = action.payload;
     },
     toggleSettingsPanel: (state) => {
       state.isSettingsPanelOpen = !state.isSettingsPanelOpen;
@@ -48,7 +44,6 @@ const uiSlice = createSlice({
 export const {
   toggleDarkMode,
   setDarkMode,
-  setActiveTab,
   toggleSettingsPanel,
   closeSettingsPanel,
   showAlert,

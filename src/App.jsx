@@ -3,10 +3,10 @@ import React, { useEffect } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
+import { Routes, Route, useLocation, Link } from 'react-router-dom';
 
 import { store } from './store/store';
 import {
-  setActiveTab,
   toggleSettingsPanel,
   closeSettingsPanel,
   toggleDarkMode,
@@ -25,7 +25,8 @@ import CustomAlert from './components/CustomAlert';
 
 const AppContent = () => {
   const dispatch = useDispatch();
-  const { isDarkMode, activeTab, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
+  const location = useLocation();
+  const { isDarkMode, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -33,15 +34,13 @@ const AppContent = () => {
 
   // Tab configuration
   const tabs = [
-    { id: 'config', label: 'Configuration', icon: Database, component: ConfigTab },
-    { id: 'migration', label: 'Migration', icon: RefreshCw, component: MigrationTab },
-    { id: 'preview', label: 'Preview', icon: BarChart3, component: PreviewTab },
-    { id: 'report', label: 'Report', icon: FileText, component: ReportTab },
-    { id: 'search', label: 'Search', icon: Search, component: SearchTab },
-    { id: 'rejectionTrends', label: 'Rejection Trends', icon: TrendingDown, component: RejectionTrendsTab },
+    { id: 'config', path: '/', label: 'Configuration', icon: Database, component: ConfigTab },
+    { id: 'migration', path: '/migration', label: 'Migration', icon: RefreshCw, component: MigrationTab },
+    { id: 'preview', path: '/preview', label: 'Preview', icon: BarChart3, component: PreviewTab },
+    { id: 'report', path: '/report', label: 'Report', icon: FileText, component: ReportTab },
+    { id: 'search', path: '/search', label: 'Search', icon: Search, component: SearchTab },
+    { id: 'rejectionTrends', path: '/rejection-trends', label: 'Rejection Trends', icon: TrendingDown, component: RejectionTrendsTab },
   ];
-
-  const ActiveComponent = tabs.find(tab => tab.id === activeTab)?.component || ConfigTab;
 
   return (
     <div className={`min-h-screen transition-all duration-300 ${
@@ -105,38 +104,60 @@ const AppContent = () => {
           <div className="flex flex-wrap gap-2 p-2 bg-white/10 dark:bg-black/20 backdrop-blur-xl rounded-2xl border border-white/20 dark:border-gray-700/30">
             {tabs.map((tab) => {
               const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
+              const isActive = location.pathname === tab.path;
               
               return (
-                <motion.button
-                  key={tab.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => dispatch(setActiveTab(tab.id))}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-white/20 dark:hover:bg-gray-800/50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </motion.button>
+                <Link to={tab.path} key={tab.id}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-white/20 dark:hover:bg-gray-800/50'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </motion.div>
+                </Link>
               );
             })}
           </div>
         </motion.nav>
 
         {/* Main Content */}
-        <motion.main 
-          key={activeTab}
-          initial={{ opacity: 0, y: 20 }} 
-          animate={{ opacity: 1, y: 0 }} 
-          exit={{ opacity: 0, y: -20 }} 
-          transition={{ duration: 0.3 }}
-        >
-          <ActiveComponent />
-        </motion.main>
+        <AnimatePresence mode="wait">
+          <motion.main
+            key={location.pathname}
+            initial="hidden"
+            animate="visible"
+            exit="hidden"
+            variants={{
+              visible: { 
+                opacity: 1, 
+                y: 0,
+                transition: { 
+                  when: "beforeChildren",
+                  staggerChildren: 0.1 
+                }
+              },
+              hidden: { 
+                opacity: 0, 
+                y: 20,
+                transition: { 
+                  when: "afterChildren" 
+                }
+              },
+            }}
+          >
+            <Routes location={location}>
+              {tabs.map(tab => (
+                <Route key={tab.id} path={tab.path} element={<tab.component />} />
+              ))}
+            </Routes>
+          </motion.main>
+        </AnimatePresence>
       </div>
 
       {/* Settings Panel */}
