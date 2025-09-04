@@ -193,6 +193,8 @@ const ReportTab = () => {
               </label>
               <div className="relative">
                 <input
+                  id="selectedDate"
+                  name="selectedDate"
                   type="date"
                   value={selectedDate}
                   onChange={(e) => dispatch(setSelectedDate(e.target.value))}
@@ -208,6 +210,8 @@ const ReportTab = () => {
               </label>
               <div className="relative">
                 <select
+                  id="selectedVendor"
+                  name="selectedVendor"
                   value={selectedVendor}
                   onChange={(e) => dispatch(setSelectedVendor(e.target.value))}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-200 appearance-none"

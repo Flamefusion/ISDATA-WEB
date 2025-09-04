@@ -75,11 +75,13 @@ const SearchTab = () => {
             { field: 'dateTo', label: 'Date To', type: 'date', icon: Calendar }
           ].map((item) => (
             <div key={item.field} className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              <label htmlFor={item.field} className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                 {item.label}
               </label>
               <div className="relative">
                 <input 
+                  id={item.field}
+                  name={item.field}
                   type={item.type || 'text'} 
                   value={searchFilters[item.field]} 
                   onChange={(e) => dispatch(updateSearchFilters({ [item.field]: e.target.value }))} 

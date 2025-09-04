@@ -265,11 +265,13 @@ const ConfigTab = () => {
 
         <motion.div variants={staggerContainer} animate="animate" className="space-y-4">
           <motion.div variants={staggerItem} className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+            <label htmlFor="serviceAccountFile" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
               Service Account JSON
             </label>
             <div className="flex items-center gap-2">
               <input 
+                id="serviceAccountFileName"
+                name="serviceAccountFileName"
                 type="text" 
                 value={config.serviceAccountFileName} 
                 readOnly 
@@ -277,6 +279,8 @@ const ConfigTab = () => {
                 placeholder="Service account JSON file selected..." 
               />
               <input 
+                id="serviceAccountFile"
+                name="serviceAccountFile"
                 type="file" 
                 ref={fileInputRef} 
                 onChange={handleFileChange} 
@@ -297,11 +301,13 @@ const ConfigTab = () => {
 
           {['vendorDataUrl', 'vqcDataUrl', 'ftDataUrl'].map((field) => (
             <motion.div key={field} variants={staggerItem} className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              <label htmlFor={field} className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                 {field === 'vendorDataUrl' ? 'Vendor Data URL' : 
                  field === 'vqcDataUrl' ? 'VQC Data URL' : 'FT Data URL'}
               </label>
               <input 
+                id={field}
+                name={field}
                 type="url" 
                 value={config[field]} 
                 onChange={(e) => dispatch(updateConfig({ [field]: e.target.value }))} 
@@ -370,10 +376,12 @@ const ConfigTab = () => {
             { field: 'dbUser', label: 'Username', placeholder: 'postgres' }
           ].map((item) => (
             <div key={item.field} className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              <label htmlFor={item.field} className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                 {item.label}
               </label>
               <input 
+                id={item.field}
+                name={item.field}
                 type="text" 
                 value={config[item.field]} 
                 onChange={(e) => dispatch(updateConfig({ [item.field]: e.target.value }))} 
@@ -384,10 +392,12 @@ const ConfigTab = () => {
           ))}
           
           <div className="md:col-span-2 space-y-2">
-            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+            <label htmlFor="dbPassword" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
               Password
             </label>
             <input 
+              id="dbPassword"
+              name="dbPassword"
               type="password" 
               value={config.dbPassword} 
               onChange={(e) => dispatch(updateConfig({ dbPassword: e.target.value }))} 

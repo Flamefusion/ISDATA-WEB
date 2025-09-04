@@ -148,6 +148,8 @@ const RejectionTrendsTab = () => {
               </label>
               <div className="relative">
                 <input
+                  id="dateFrom"
+                  name="dateFrom"
                   type="date"
                   value={dateFrom}
                   onChange={(e) => onStateChange('dateFrom', e.target.value)}
@@ -163,6 +165,8 @@ const RejectionTrendsTab = () => {
               </label>
               <div className="relative">
                 <input
+                  id="dateTo"
+                  name="dateTo"
                   type="date"
                   value={dateTo}
                   onChange={(e) => onStateChange('dateTo', e.target.value)}
@@ -178,6 +182,8 @@ const RejectionTrendsTab = () => {
               </label>
               <div className="relative">
                 <select
+                  id="selectedVendor"
+                  name="selectedVendor"
                   value={selectedVendor}
                   onChange={(e) => onStateChange('selectedVendor', e.target.value)}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 transition-all duration-200 appearance-none"
