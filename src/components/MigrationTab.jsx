@@ -1,15 +1,8 @@
-// src/components/MigrationTab.jsx - Updated with Real API Integration
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Play, Loader } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { 
-  setMigrationProgress, 
-  addMigrationLog, 
-  setMigrationRunning,
-  setMigrationError,
-  clearMigrationLog
-} from '../store/slices/migrationSlice';
+import { startMigration } from '../store/thunks/migrationThunks';
 import { showAlert } from '../store/slices/uiSlice';
 
 // Animation variants
@@ -25,7 +18,7 @@ const MigrationTab = () => {
   const { migrationProgress, migrationLog, isRunning, error } = useSelector((state) => state.migration);
   const config = useSelector((state) => state.config);
 
-  const handleStartMigration = async () => {
+  const handleStartMigration = () => {
     // Validate configuration
     if (!config.serviceAccountContent) {
       dispatch(showAlert({ 
@@ -43,107 +36,7 @@ const MigrationTab = () => {
       return;
     }
 
-    // Clear previous logs and start migration
-    dispatch(clearMigrationLog());
-    dispatch(setMigrationRunning(true));
-    dispatch(setMigrationProgress(0));
-    dispatch(addMigrationLog('Starting migration process...'));
-
-    try {
-      // Create event source for Server-Sent Events
-      const eventSource = new EventSource('/api/migrate');
-      
-      eventSource.onmessage = (event) => {
-        const message = event.data;
-        dispatch(addMigrationLog(message));
-        
-        // Try to extract progress from certain messages
-        if (message.includes('%')) {
-          const progressMatch = message.match(/(\d+)%/);
-          if (progressMatch) {
-            const progress = parseInt(progressMatch[1]);
-            dispatch(setMigrationProgress(progress));
-          }
-        } else if (message.includes('completed successfully')) {
-          dispatch(setMigrationProgress(100));
-          dispatch(setMigrationRunning(false));
-          dispatch(showAlert({ 
-            message: 'Migration completed successfully!', 
-            type: 'success' 
-          }));
-        } else if (message.includes('ERROR')) {
-          dispatch(setMigrationError(message));
-          dispatch(setMigrationRunning(false));
-          dispatch(showAlert({ 
-            message: 'Migration failed. Check logs for details.', 
-            type: 'error' 
-          }));
-        }
-        
-        // Estimate progress based on key messages
-        if (message.includes('Connecting to Google API')) {
-          dispatch(setMigrationProgress(10));
-        } else if (message.includes('Starting parallel data loading')) {
-          dispatch(setMigrationProgress(20));
-        } else if (message.includes('Starting merge')) {
-          dispatch(setMigrationProgress(50));
-        } else if (message.includes('Copying') && message.includes('records to DB')) {
-          dispatch(setMigrationProgress(70));
-        } else if (message.includes('Updating existing records')) {
-          dispatch(setMigrationProgress(85));
-        } else if (message.includes('Inserting new records')) {
-          dispatch(setMigrationProgress(95));
-        }
-      };
-
-      eventSource.onerror = (error) => {
-        console.error('Migration stream error:', error);
-        eventSource.close();
-        dispatch(setMigrationError('Connection to migration stream failed'));
-        dispatch(setMigrationRunning(false));
-        dispatch(showAlert({ 
-          message: 'Migration stream failed. Please check your connection.', 
-          type: 'error' 
-        }));
-      };
-
-      // Send configuration via POST (note: we need to modify backend to accept config in request body)
-      fetch('/api/migrate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          serviceAccountContent: config.serviceAccountContent,
-          vendorDataUrl: config.vendorDataUrl,
-          vqcDataUrl: config.vqcDataUrl,
-          ftDataUrl: config.ftDataUrl,
-        }),
-      }).catch(err => {
-        console.error('Failed to start migration:', err);
-        eventSource.close();
-        dispatch(setMigrationError('Failed to start migration'));
-        dispatch(setMigrationRunning(false));
-        dispatch(showAlert({ 
-          message: 'Failed to start migration', 
-          type: 'error' 
-        }));
-      });
-
-      // Clean up event source when migration completes or component unmounts
-      return () => {
-        eventSource.close();
-      };
-
-    } catch (err) {
-      dispatch(setMigrationError(err.message));
-      dispatch(addMigrationLog(`Migration failed: ${err.message}`));
-      dispatch(setMigrationRunning(false));
-      dispatch(showAlert({ 
-        message: 'Migration failed. Check logs for details.', 
-        type: 'error' 
-      }));
-    }
+    dispatch(startMigration(config));
   };
 
   return (

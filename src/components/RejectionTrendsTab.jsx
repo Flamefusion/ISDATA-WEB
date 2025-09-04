@@ -223,15 +223,7 @@ const RejectionTrendsTab = () => {
 
     // Create CSV content
     const headers = ['Stage', 'Rejection Type', ...dateRange, 'Total'];
-    const csvContent = [
-      headers.join(','),
-      ...sortedData.map(row => [
-        row.stage,
-        row.rejection,
-        ...dateRange.map(date => row.dateWiseData[date] || 0),
-        row.totals.total
-      ].join(','))
-    ].join('\n');
+
 
     // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
