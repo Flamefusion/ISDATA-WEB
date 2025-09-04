@@ -1,4 +1,5 @@
-import React from 'react';
+// src/components/ReportTab.jsx - Updated with Redux
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FileText, 
@@ -17,6 +18,18 @@ import {
   Eye,
   Download
 } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { 
+  setReportData,
+  setSelectedDate,
+  setSelectedVendor,
+  setVendors,
+  setLoading,
+  setError,
+  clearReport,
+  loadReport as loadReportAction
+} from '../store/slices/reportSlice';
+import { showAlert } from '../store/slices/uiSlice';
 
 // Animation variants
 const staggerContainer = {
@@ -28,18 +41,170 @@ const staggerItem = {
   animate: { opacity: 1, y: 0 }
 };
 
-const ReportTab = ({
-  selectedDate,
-  setSelectedDate,
-  selectedVendor,
-  setSelectedVendor,
-  reportData,
-  isLoading,
-  vendors,
-  error,
-  loadReport,
-  exportReport,
-}) => {
+const ReportTab = () => {
+  const dispatch = useDispatch();
+  const { 
+    reportData, 
+    selectedDate, 
+    selectedVendor, 
+    vendors, 
+    isLoading, 
+    error 
+  } = useSelector((state) => state.report);
+
+  // Load vendors on component mount
+  useEffect(() => {
+    loadVendors();
+  }, []);
+
+  const loadVendors = async () => {
+    try {
+      // Mock vendors - replace with your API call
+      const mockVendors = ['all', 'Vendor A', 'Vendor B', 'Vendor C', 'Vendor D', 'Vendor E'];
+      dispatch(setVendors(mockVendors));
+    } catch (err) {
+      console.error('Failed to load vendors:', err);
+    }
+  };
+
+  const handleLoadReport = async () => {
+    dispatch(loadReportAction());
+
+    try {
+      // Mock report data - replace with your API call
+      const mockReportData = {
+        totalReceived: 1250,
+        totalAccepted: 1087,
+        totalRejected: 163,
+        totalPending: 0,
+        yield: 87,
+        vqcBreakdown: {
+          accepted: 1100,
+          rejected: 150,
+          pending: 0,
+          rejectionReasons: [
+            { reason: 'Scratches', count: 65, percentage: 43.3 },
+            { reason: 'Dents', count: 42, percentage: 28.0 },
+            { reason: 'Color Issue', count: 28, percentage: 18.7 },
+            { reason: 'Polish Issue', count: 15, percentage: 10.0 }
+          ]
+        },
+        ftBreakdown: {
+          accepted: 1063,
+          rejected: 37,
+          pending: 0,
+          rejectionReasons: [
+            { reason: 'Size Issue', count: 20, percentage: 54.1 },
+            { reason: 'Weight Issue', count: 17, percentage: 45.9 }
+          ]
+        },
+        vendorBreakdown: selectedVendor === 'all' ? [
+          { vendor: 'Vendor A', totalReceived: 300, totalAccepted: 261, totalRejected: 39, totalPending: 0, yield: 87 },
+          { vendor: 'Vendor B', totalReceived: 275, totalAccepted: 240, totalRejected: 35, totalPending: 0, yield: 87.3 },
+          { vendor: 'Vendor C', totalReceived: 225, totalAccepted: 196, totalRejected: 29, totalPending: 0, yield: 87.1 },
+          { vendor: 'Vendor D', totalReceived: 250, totalAccepted: 218, totalRejected: 32, totalPending: 0, yield: 87.2 },
+          { vendor: 'Vendor E', totalReceived: 200, totalAccepted: 172, totalRejected: 28, totalPending: 0, yield: 86 }
+        ] : [],
+        hourlyData: [
+          { hour: '08:00', received: 85, accepted: 74, rejected: 11, pending: 0 },
+          { hour: '09:00', received: 92, accepted: 80, rejected: 12, pending: 0 },
+          { hour: '10:00', received: 105, accepted: 92, rejected: 13, pending: 0 },
+          { hour: '11:00', received: 98, accepted: 85, rejected: 13, pending: 0 },
+          { hour: '12:00', received: 75, accepted: 65, rejected: 10, pending: 0 },
+          { hour: '13:00', received: 110, accepted: 96, rejected: 14, pending: 0 },
+          { hour: '14:00', received: 125, accepted: 109, rejected: 16, pending: 0 },
+          { hour: '15:00', received: 118, accepted: 103, rejected: 15, pending: 0 },
+          { hour: '16:00', received: 102, accepted: 89, rejected: 13, pending: 0 },
+          { hour: '17:00', received: 95, accepted: 82, rejected: 13, pending: 0 },
+          { hour: '18:00', received: 88, accepted: 77, rejected: 11, pending: 0 },
+          { hour: '19:00', received: 107, accepted: 93, rejected: 14, pending: 0 }
+        ]
+      };
+
+      dispatch(setReportData(mockReportData));
+      dispatch(showAlert({ 
+        message: 'Report generated successfully', 
+        type: 'success' 
+      }));
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(showAlert({ 
+        message: 'Failed to generate report', 
+        type: 'error' 
+      }));
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+
+  const handleExportReport = (format) => {
+    if (!reportData) {
+      dispatch(showAlert({ 
+        message: 'No report data to export', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    // Create export data
+    const exportData = {
+      date: selectedDate,
+      vendor: selectedVendor,
+      summary: {
+        totalReceived: reportData.totalReceived,
+        totalAccepted: reportData.totalAccepted,
+        totalRejected: reportData.totalRejected,
+        yield: reportData.yield
+      },
+      vqcBreakdown: reportData.vqcBreakdown,
+      ftBreakdown: reportData.ftBreakdown
+    };
+
+    if (format === 'csv') {
+      // Create CSV content
+      const csvRows = [
+        ['Metric', 'Value'],
+        ['Date', selectedDate],
+        ['Vendor', selectedVendor],
+        ['Total Received', reportData.totalReceived],
+        ['Total Accepted', reportData.totalAccepted],
+        ['Total Rejected', reportData.totalRejected],
+        ['Overall Yield (%)', reportData.yield],
+        [''],
+        ['VQC Breakdown'],
+        ['VQC Accepted', reportData.vqcBreakdown.accepted],
+        ['VQC Rejected', reportData.vqcBreakdown.rejected],
+        [''],
+        ['FT Breakdown'],
+        ['FT Accepted', reportData.ftBreakdown.accepted],
+        ['FT Rejected', reportData.ftBreakdown.rejected]
+      ];
+
+      const csvContent = csvRows.map(row => row.join(',')).join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `report_${selectedDate}_${selectedVendor}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else if (format === 'excel') {
+      // For Excel export, you would typically use a library like xlsx
+      // For now, we'll just show an alert
+      dispatch(showAlert({ 
+        message: 'Excel export feature coming soon', 
+        type: 'info' 
+      }));
+    }
+
+    dispatch(showAlert({ 
+      message: `Report exported successfully as ${format.toUpperCase()}`, 
+      type: 'success' 
+    }));
+  };
+
   const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
     <motion.div
       variants={staggerItem}
@@ -124,128 +289,6 @@ const ReportTab = ({
     </motion.div>
   );
 
-  const HourlyChart = ({ data }) => (
-    <motion.div
-      variants={staggerItem}
-      className="bg-white dark:bg-black/90 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30 shadow-2xl dark:shadow-black/50"
-    >
-      <div className="flex items-center gap-2 mb-6">
-        <BarChart3 className="w-5 h-5 text-blue-500" />
-        <h4 className="text-lg font-bold text-gray-800 dark:text-gray-100">Hourly Production</h4>
-      </div>
-      <div className="space-y-3">
-        {data.length > 0 ? data.map((item, index) => {
-          const completedRings = item.accepted + item.rejected;
-          const yieldRate = completedRings > 0 ? ((item.accepted / completedRings) * 100).toFixed(1) : 0;
-          return (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg"
-            >
-              <div className="w-12 text-sm font-medium text-gray-600 dark:text-gray-400">
-                {item.hour}
-              </div>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-500 dark:text-gray-400">Received: {item.received}</span>
-                  <span className="text-green-600 dark:text-green-400">Accepted: {item.accepted}</span>
-                  <span className="text-red-600 dark:text-red-400">Rejected: {item.rejected}</span>
-                  <span className="text-yellow-600 dark:text-yellow-400">Pending: {item.pending || 0}</span>
-                  <span className="font-bold text-blue-600 dark:text-blue-400">Yield: {yieldRate}%</span>
-                </div>
-                <div className="relative w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                  <motion.div
-                    className="bg-green-500 h-2 rounded-l-full absolute top-0 left-0"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(item.accepted / item.received) * 100}%` }}
-                    transition={{ delay: index * 0.1, duration: 0.6 }}
-                  />
-                  <motion.div
-                    className="bg-red-500 h-2 absolute top-0"
-                    style={{ left: `${(item.accepted / item.received) * 100}%` }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(item.rejected / item.received) * 100}%` }}
-                    transition={{ delay: index * 0.1 + 0.3, duration: 0.6 }}
-                  />
-                  <motion.div
-                    className="bg-yellow-500 h-2 rounded-r-full absolute top-0"
-                    style={{ left: `${((item.accepted + item.rejected) / item.received) * 100}%` }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${((item.pending || 0) / item.received) * 100}%` }}
-                    transition={{ delay: index * 0.1 + 0.6, duration: 0.6 }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          );
-        }) : (
-          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
-            No hourly data available
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-
-  const VendorBreakdown = ({ vendors }) => (
-    <motion.div
-      variants={staggerItem}
-      className="bg-white dark:bg-black/90 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30 shadow-2xl dark:shadow-black/50"
-    >
-      <div className="flex items-center gap-2 mb-6">
-        <Users className="w-5 h-5 text-purple-500" />
-        <h4 className="text-lg font-bold text-gray-800 dark:text-gray-100">Vendor-wise Breakdown</h4>
-      </div>
-      <div className="space-y-4">
-        {vendors.map((vendor, index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h5 className="font-semibold text-gray-800 dark:text-white">{vendor.vendor}</h5>
-              <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
-                {vendor.yield}%
-              </span>
-            </div>
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-500 dark:text-gray-400">Received</span>
-                <p className="font-semibold">{vendor.totalReceived}</p>
-              </div>
-              <div>
-                <span className="text-green-600 dark:text-green-400">Accepted</span>
-                <p className="font-semibold">{vendor.totalAccepted}</p>
-              </div>
-              <div>
-                <span className="text-red-600 dark:text-red-400">Rejected</span>
-                <p className="font-semibold">{vendor.totalRejected}</p>
-              </div>
-              <div>
-                <span className="text-yellow-600 dark:text-yellow-400">Pending</span>
-                <p className="font-semibold">{vendor.totalPending || 0}</p>
-              </div>
-            </div>
-            <div className="mt-2 w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-              <motion.div
-                className="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${vendor.yield}%` }}
-                transition={{ delay: index * 0.2, duration: 0.8 }}
-              />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </motion.div>
-  );
-
   if (error) {
     return (
       <div className="space-y-6">
@@ -262,7 +305,7 @@ const ReportTab = ({
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={loadReport}
+            onClick={handleLoadReport}
             className="mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors duration-200"
           >
             Retry
@@ -296,7 +339,7 @@ const ReportTab = ({
                 <input
                   type="date"
                   value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
+                  onChange={(e) => dispatch(setSelectedDate(e.target.value))}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-200"
                 />
                 <Calendar className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
@@ -310,7 +353,7 @@ const ReportTab = ({
               <div className="relative">
                 <select
                   value={selectedVendor}
-                  onChange={(e) => setSelectedVendor(e.target.value)}
+                  onChange={(e) => dispatch(setSelectedVendor(e.target.value))}
                   className="w-full px-4 py-3 pl-10 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-all duration-200 appearance-none"
                 >
                   {vendors.map((vendor) => (
@@ -327,7 +370,7 @@ const ReportTab = ({
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={loadReport}
+                onClick={handleLoadReport}
                 disabled={isLoading}
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
               >
@@ -375,7 +418,6 @@ const ReportTab = ({
               icon={Target}
               color="text-blue-600"
               subtitle="rings processed"
-              trend={reportData.trends?.received}
             />
             <StatCard
               title="Total Accepted"
@@ -383,7 +425,6 @@ const ReportTab = ({
               icon={CheckCircle}
               color="text-green-600"
               subtitle="quality passed"
-              trend={reportData.trends?.accepted}
             />
             <StatCard
               title="Total Rejected"
@@ -391,7 +432,6 @@ const ReportTab = ({
               icon={XCircle}
               color="text-red-600"
               subtitle="quality failed"
-              trend={reportData.trends?.rejected}
             />
             <StatCard
               title="Total Pending"
@@ -399,7 +439,6 @@ const ReportTab = ({
               icon={AlertCircle}
               color="text-yellow-600"
               subtitle="awaiting process"
-              trend={reportData.trends?.pending}
             />
             <StatCard
               title="Overall Yield"
@@ -407,14 +446,8 @@ const ReportTab = ({
               icon={TrendingUp}
               color="text-purple-600"
               subtitle="acceptance rate"
-              trend={reportData.trends?.yield}
             />
           </div>
-
-          {/* Vendor Breakdown (only show when 'all' is selected) */}
-          {selectedVendor === 'all' && reportData.vendorBreakdown && reportData.vendorBreakdown.length > 0 && (
-            <VendorBreakdown vendors={reportData.vendorBreakdown} />
-          )}
 
           {/* Stage-wise Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -505,11 +538,6 @@ const ReportTab = ({
             />
           </div>
 
-          {/* Hourly Production Chart */}
-          {reportData.hourlyData && reportData.hourlyData.length > 0 && (
-            <HourlyChart data={reportData.hourlyData} />
-          )}
-
           {/* Export Section */}
           <motion.div
             variants={staggerItem}
@@ -528,7 +556,7 @@ const ReportTab = ({
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => exportReport('csv')}
+                  onClick={() => handleExportReport('csv')}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
@@ -537,86 +565,12 @@ const ReportTab = ({
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => exportReport('excel')}
+                  onClick={() => handleExportReport('excel')}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Excel
                 </motion.button>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Summary Report Section */}
-          <motion.div
-            variants={staggerItem}
-            className="bg-gradient-to-br from-gray-50 to-blue-50 dark:from-black dark:to-gray-900/20 rounded-2xl p-8 border border-gray-200/50 dark:border-gray-700/50"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-gray-600 rounded-lg">
-                <FileText className="w-6 h-6 text-white" />
-              </div>
-              <h4 className="text-xl font-bold text-gray-800 dark:text-gray-100">Report Summary</h4>
-            </div>
-            
-            <div className="prose dark:prose-invert max-w-none">
-              <div className="bg-white/70 dark:bg-black/95 rounded-xl p-6 backdrop-blur-xl">
-                <h5 className="text-lg font-semibold mb-4">Daily Production Analysis - {selectedDate}</h5>
-                <div className="space-y-3 text-gray-700 dark:text-gray-200">
-                  <p>
-                    <span className="font-semibold">Production Overview:</span> On {selectedDate}, 
-                    {selectedVendor === 'all' ? ' across all vendors,' : ` for ${selectedVendor},`} a total of{' '}
-                    <span className="font-bold text-blue-600">{reportData.totalReceived}</span> rings were received for processing.
-                  </p>
-                  
-                  <p>
-                    <span className="font-semibold">Quality Results:</span> Out of the total received,{' '}
-                    <span className="font-bold text-green-600">{reportData.totalAccepted}</span> rings passed all quality checks,{' '}
-                    <span className="font-bold text-red-600">{reportData.totalRejected}</span> rings were rejected, and{' '}
-                    <span className="font-bold text-yellow-600">{reportData.totalPending || 0}</span> rings are still pending processing.
-                  </p>
-                  
-                  <p>
-                    <span className="font-semibold">Overall Yield:</span> The day achieved a yield of{' '}
-                    <span className="font-bold text-purple-600">{reportData.yield}%</span> from completed rings, indicating{' '}
-                    {reportData.yield >= 85 ? 'excellent' : reportData.yield >= 75 ? 'good' : reportData.yield >= 65 ? 'acceptable' : 'below target'} performance.
-                    {reportData.totalPending > 0 && (
-                      <span className="text-yellow-600"> Note: {reportData.totalPending} rings are still pending and not included in yield calculation.</span>
-                    )}
-                  </p>
-                  
-                  <p>
-                    <span className="font-semibold">Processing Status:</span> VQC stage processed{' '}
-                    <span className="font-bold">{reportData.vqcBreakdown.accepted + reportData.vqcBreakdown.rejected}</span> rings 
-                    ({reportData.vqcBreakdown.pending || 0} pending), while FT stage processed{' '}
-                    <span className="font-bold">{reportData.ftBreakdown.accepted + reportData.ftBreakdown.rejected}</span> rings 
-                    ({reportData.ftBreakdown.pending || 0} pending).
-                  </p>
-                  
-                  {reportData.vqcBreakdown.rejectionReasons.length > 0 && (
-                    <p>
-                      <span className="font-semibold">Primary VQC Issues:</span> The main quality concerns were{' '}
-                      {reportData.vqcBreakdown.rejectionReasons.slice(0, 3).map((reason, index) => (
-                        <span key={index}>
-                          {reason.reason} ({reason.count} rings)
-                          {index < Math.min(2, reportData.vqcBreakdown.rejectionReasons.length - 1) ? ', ' : ''}
-                        </span>
-                      )).reduce((prev, curr, index) => index === 0 ? [curr] : [...prev, index === reportData.vqcBreakdown.rejectionReasons.slice(0, 3).length - 1 ? ' and ' : ', ', curr], [])}.
-                    </p>
-                  )}
-                  
-                  {reportData.ftBreakdown.rejectionReasons.length > 0 && (
-                    <p>
-                      <span className="font-semibold">Functional Test Issues:</span> FT rejections were primarily due to{' '}
-                      {reportData.ftBreakdown.rejectionReasons.slice(0, 2).map((reason, index) => (
-                        <span key={index}>
-                          {reason.reason} ({reason.count} rings)
-                          {index < Math.min(1, reportData.ftBreakdown.rejectionReasons.length - 1) ? ' and ' : ''}
-                        </span>
-                      ))}.
-                    </p>
-                  )}
-                </div>
               </div>
             </div>
           </motion.div>
@@ -640,7 +594,7 @@ const ReportTab = ({
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={loadReport}
+            onClick={handleLoadReport}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200"
           >
             Retry Report Generation

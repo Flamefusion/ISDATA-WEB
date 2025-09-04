@@ -1,3 +1,4 @@
+// src/components/MigrationTab.jsx - Updated with Real API Integration
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Loader } from 'lucide-react';
@@ -7,7 +8,7 @@ import {
   addMigrationLog, 
   setMigrationRunning,
   setMigrationError,
-  startMigration as startMigrationAction 
+  clearMigrationLog
 } from '../store/slices/migrationSlice';
 import { showAlert } from '../store/slices/uiSlice';
 
@@ -22,30 +23,118 @@ const fadeInUp = {
 const MigrationTab = () => {
   const dispatch = useDispatch();
   const { migrationProgress, migrationLog, isRunning, error } = useSelector((state) => state.migration);
+  const config = useSelector((state) => state.config);
 
   const handleStartMigration = async () => {
-    dispatch(startMigrationAction());
+    // Validate configuration
+    if (!config.serviceAccountContent) {
+      dispatch(showAlert({ 
+        message: 'Please configure and test Google Sheets connection first', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    if (!config.vendorDataUrl) {
+      dispatch(showAlert({ 
+        message: 'Vendor Data URL is required for migration', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    // Clear previous logs and start migration
+    dispatch(clearMigrationLog());
+    dispatch(setMigrationRunning(true));
+    dispatch(setMigrationProgress(0));
+    dispatch(addMigrationLog('Starting migration process...'));
 
     try {
-      // Simulate migration process
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        dispatch(setMigrationProgress(i));
-        dispatch(addMigrationLog(`Migration progress: ${i}%`));
+      // Create event source for Server-Sent Events
+      const eventSource = new EventSource('/api/migrate');
+      
+      eventSource.onmessage = (event) => {
+        const message = event.data;
+        dispatch(addMigrationLog(message));
         
-        // Add some realistic migration steps
-        if (i === 20) dispatch(addMigrationLog('Connecting to Google Sheets...'));
-        if (i === 40) dispatch(addMigrationLog('Reading vendor data...'));
-        if (i === 60) dispatch(addMigrationLog('Processing VQC data...'));
-        if (i === 80) dispatch(addMigrationLog('Processing FT data...'));
-        if (i === 100) dispatch(addMigrationLog('Migration completed successfully!'));
-      }
+        // Try to extract progress from certain messages
+        if (message.includes('%')) {
+          const progressMatch = message.match(/(\d+)%/);
+          if (progressMatch) {
+            const progress = parseInt(progressMatch[1]);
+            dispatch(setMigrationProgress(progress));
+          }
+        } else if (message.includes('completed successfully')) {
+          dispatch(setMigrationProgress(100));
+          dispatch(setMigrationRunning(false));
+          dispatch(showAlert({ 
+            message: 'Migration completed successfully!', 
+            type: 'success' 
+          }));
+        } else if (message.includes('ERROR')) {
+          dispatch(setMigrationError(message));
+          dispatch(setMigrationRunning(false));
+          dispatch(showAlert({ 
+            message: 'Migration failed. Check logs for details.', 
+            type: 'error' 
+          }));
+        }
+        
+        // Estimate progress based on key messages
+        if (message.includes('Connecting to Google API')) {
+          dispatch(setMigrationProgress(10));
+        } else if (message.includes('Starting parallel data loading')) {
+          dispatch(setMigrationProgress(20));
+        } else if (message.includes('Starting merge')) {
+          dispatch(setMigrationProgress(50));
+        } else if (message.includes('Copying') && message.includes('records to DB')) {
+          dispatch(setMigrationProgress(70));
+        } else if (message.includes('Updating existing records')) {
+          dispatch(setMigrationProgress(85));
+        } else if (message.includes('Inserting new records')) {
+          dispatch(setMigrationProgress(95));
+        }
+      };
 
-      dispatch(setMigrationRunning(false));
-      dispatch(showAlert({ 
-        message: 'Migration completed successfully!', 
-        type: 'success' 
-      }));
+      eventSource.onerror = (error) => {
+        console.error('Migration stream error:', error);
+        eventSource.close();
+        dispatch(setMigrationError('Connection to migration stream failed'));
+        dispatch(setMigrationRunning(false));
+        dispatch(showAlert({ 
+          message: 'Migration stream failed. Please check your connection.', 
+          type: 'error' 
+        }));
+      };
+
+      // Send configuration via POST (note: we need to modify backend to accept config in request body)
+      fetch('/api/migrate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serviceAccountContent: config.serviceAccountContent,
+          vendorDataUrl: config.vendorDataUrl,
+          vqcDataUrl: config.vqcDataUrl,
+          ftDataUrl: config.ftDataUrl,
+        }),
+      }).catch(err => {
+        console.error('Failed to start migration:', err);
+        eventSource.close();
+        dispatch(setMigrationError('Failed to start migration'));
+        dispatch(setMigrationRunning(false));
+        dispatch(showAlert({ 
+          message: 'Failed to start migration', 
+          type: 'error' 
+        }));
+      });
+
+      // Clean up event source when migration completes or component unmounts
+      return () => {
+        eventSource.close();
+      };
+
     } catch (err) {
       dispatch(setMigrationError(err.message));
       dispatch(addMigrationLog(`Migration failed: ${err.message}`));
@@ -65,7 +154,7 @@ const MigrationTab = () => {
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
           onClick={handleStartMigration} 
-          disabled={isRunning} 
+          disabled={isRunning || !config.serviceAccountContent} 
           className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
         >
           {isRunning ? 
@@ -74,6 +163,39 @@ const MigrationTab = () => {
           }
           {isRunning ? 'Migration Running...' : 'Start Migration'}
         </motion.button>
+      </div>
+
+      {/* Configuration Status */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-xl p-4">
+        <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-400 mb-2">
+          Migration Prerequisites
+        </h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${config.serviceAccountContent ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-gray-700 dark:text-gray-300">
+              Google Sheets Service Account: {config.serviceAccountContent ? 'Configured' : 'Not Configured'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${config.vendorDataUrl ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-gray-700 dark:text-gray-300">
+              Vendor Data URL: {config.vendorDataUrl ? 'Set' : 'Not Set'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${config.vqcDataUrl ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+            <span className="text-gray-700 dark:text-gray-300">
+              VQC Data URL: {config.vqcDataUrl ? 'Set' : 'Optional - Not Set'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${config.ftDataUrl ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+            <span className="text-gray-700 dark:text-gray-300">
+              FT Data URL: {config.ftDataUrl ? 'Set' : 'Optional - Not Set'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {migrationLog.length > 0 && (
@@ -110,7 +232,11 @@ const MigrationTab = () => {
                 key={index} 
                 initial={{ opacity: 0, x: -20 }} 
                 animate={{ opacity: 1, x: 0 }} 
-                className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-mono"
+                className={`text-xs mb-1 font-mono ${
+                  log.message.includes('ERROR') ? 'text-red-600 dark:text-red-400' :
+                  log.message.includes('successfully') ? 'text-green-600 dark:text-green-400' :
+                  'text-gray-600 dark:text-gray-400'
+                }`}
               >
                 <span className="text-blue-500">[{log.timestamp}]</span> {log.message}
               </motion.div>
@@ -128,6 +254,45 @@ const MigrationTab = () => {
               </p>
             </motion.div>
           )}
+        </motion.div>
+      )}
+
+      {/* Migration Instructions */}
+      {migrationLog.length === 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30"
+        >
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+            Migration Process
+          </h4>
+          <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+              <div>
+                <strong>Connect to Google Sheets:</strong> The system will authenticate using your service account credentials and connect to the configured Google Sheets.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+              <div>
+                <strong>Load Data:</strong> Vendor data, VQC data, and FT data will be loaded in parallel from their respective sheets.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+              <div>
+                <strong>Merge & Process:</strong> All data sources will be merged intelligently, handling duplicates and data validation.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
+              <div>
+                <strong>Database Update:</strong> Existing records will be updated and new records will be inserted using high-performance bulk operations.
+              </div>
+            </div>
+          </div>
         </motion.div>
       )}
     </motion.div>

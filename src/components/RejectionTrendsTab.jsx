@@ -1,14 +1,23 @@
-import React from 'react';
+// src/components/RejectionTrendsTab.jsx - Updated with Redux
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpDown, Calendar, Users, Loader, RefreshCw, Download, TrendingDown, AlertTriangle, BarChart3, FileSpreadsheet } from 'lucide-react';
+import { useSelector, useDispatch } from 'react-redux';
+import { 
+  updateRejectionTrendsState,
+  setRejectionData,
+  setTrendsData,
+  setVendors,
+  setLoading,
+  setError,
+  setSortConfig,
+  clearRejectionTrends,
+  loadRejectionData as loadRejectionDataAction
+} from '../store/slices/rejectionTrendsSlice';
+import { showAlert } from '../store/slices/uiSlice';
 
-const RejectionTrendsTab = ({ 
-  vendors, 
-  rejectionTrendsState,
-  onStateChange,
-  exportToCSV,
-  loadRejectionData 
-}) => {
+const RejectionTrendsTab = () => {
+  const dispatch = useDispatch();
   const {
     dateFrom,
     dateTo,
@@ -18,7 +27,111 @@ const RejectionTrendsTab = ({
     trendsData,
     isLoadingData,
     sortConfig,
-  } = rejectionTrendsState;
+    vendors,
+    error
+  } = useSelector((state) => state.rejectionTrends);
+
+  // Load vendors on component mount
+  useEffect(() => {
+    loadVendors();
+  }, []);
+
+  const loadVendors = async () => {
+    try {
+      // Mock vendors - replace with your API call
+      const mockVendors = ['all', 'Vendor A', 'Vendor B', 'Vendor C', 'Vendor D', 'Vendor E'];
+      dispatch(setVendors(mockVendors));
+    } catch (err) {
+      console.error('Failed to load vendors:', err);
+    }
+  };
+
+  // Handle state changes
+  const onStateChange = (key, value) => {
+    dispatch(updateRejectionTrendsState({ key, value }));
+  };
+
+  // Load rejection data
+  const loadRejectionData = async () => {
+    if (!dateFrom || !dateTo) {
+      dispatch(showAlert({ 
+        message: 'Please select both from and to dates', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    dispatch(loadRejectionDataAction());
+
+    try {
+      // Mock rejection trends data - replace with your API call
+      const mockData = generateMockRejectionData();
+      
+      dispatch(setRejectionData(mockData.rejectionData));
+      dispatch(setTrendsData(mockData.trendsData));
+      dispatch(showAlert({ 
+        message: 'Rejection trends data loaded successfully', 
+        type: 'success' 
+      }));
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(showAlert({ 
+        message: 'Failed to load rejection trends', 
+        type: 'error' 
+      }));
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+
+  // Generate mock data
+  const generateMockRejectionData = () => {
+    const stages = ['ASSEMBLY', 'CASTING', 'FUNCTIONAL', 'POLISHING', 'SHELL'];
+    const rejectionTypes = {
+      'ASSEMBLY': ['Loose Stones', 'Misalignment', 'Poor Fit'],
+      'CASTING': ['Porosity', 'Surface Defects', 'Incomplete Fill'],
+      'FUNCTIONAL': ['Size Issue', 'Weight Variance', 'Mechanism Failure'],
+      'POLISHING': ['Scratches', 'Dull Finish', 'Uneven Polish'],
+      'SHELL': ['Cracks', 'Thickness Issues', 'Shape Distortion']
+    };
+
+    const dateRange = generateDateRange(dateFrom, dateTo);
+    const rejectionData = [];
+    let totalRejections = 0;
+    const stageWiseTotals = {};
+
+    stages.forEach(stage => {
+      rejectionTypes[stage].forEach(rejection => {
+        const dateWiseData = {};
+        let rowTotal = 0;
+
+        dateRange.forEach(date => {
+          const count = Math.floor(Math.random() * 8); // Random 0-7
+          dateWiseData[date] = count;
+          rowTotal += count;
+        });
+
+        if (rowTotal > 0) { // Only include rows with data
+          rejectionData.push({
+            stage,
+            rejection,
+            dateWiseData,
+            totals: { total: rowTotal }
+          });
+
+          totalRejections += rowTotal;
+          stageWiseTotals[stage] = (stageWiseTotals[stage] || 0) + rowTotal;
+        }
+      });
+    });
+
+    const trendsData = {
+      totalRejections,
+      stageWiseTotals
+    };
+
+    return { rejectionData, trendsData };
+  };
 
   // Generate date range for columns
   const generateDateRange = (startDate, endDate) => {
@@ -42,7 +155,7 @@ const RejectionTrendsTab = ({
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     }
-    onStateChange('sortConfig', { key, direction });
+    dispatch(setSortConfig({ key, direction }));
   };
 
   const getSortedData = () => {
@@ -97,6 +210,44 @@ const RejectionTrendsTab = ({
       'SHELL': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
     };
     return colors[stage] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+  };
+
+  const exportToCSV = () => {
+    if (rejectionData.length === 0) {
+      dispatch(showAlert({ 
+        message: 'No data to export', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['Stage', 'Rejection Type', ...dateRange, 'Total'];
+    const csvContent = [
+      headers.join(','),
+      ...sortedData.map(row => [
+        row.stage,
+        row.rejection,
+        ...dateRange.map(date => row.dateWiseData[date] || 0),
+        row.totals.total
+      ].join(','))
+    ].join('\n');
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `rejection_trends_${dateFrom}_to_${dateTo}_${selectedVendor}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    dispatch(showAlert({ 
+      message: 'Rejection trends exported successfully', 
+      type: 'success' 
+    }));
   };
 
   const SortableHeader = ({ children, sortKey, className = "" }) => (
@@ -186,7 +337,7 @@ const RejectionTrendsTab = ({
               </div>
             </div>
             
-            {/* New Rejection Stage Filter */}
+            {/* Rejection Stage Filter */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
                 Rejection Stage
@@ -209,6 +360,17 @@ const RejectionTrendsTab = ({
             </div>
             
             <div className="flex items-end gap-2">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={loadRejectionData}
+                disabled={isLoadingData}
+                className="px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isLoadingData ? <Loader className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                Load Data
+              </motion.button>
+              
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -283,6 +445,19 @@ const RejectionTrendsTab = ({
               Loading Rejection Trends Data...
             </p>
           </div>
+        </motion.div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-xl p-4"
+        >
+          <p className="text-red-600 dark:text-red-400 font-medium">
+            Error: {error}
+          </p>
         </motion.div>
       )}
 
@@ -416,7 +591,7 @@ const RejectionTrendsTab = ({
       )}
 
       {/* No Data State */}
-      {rejectionData.length === 0 && !isLoadingData && (
+      {rejectionData.length === 0 && !isLoadingData && !error && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -435,7 +610,7 @@ const RejectionTrendsTab = ({
             onClick={loadRejectionData}
             className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200"
           >
-            Retry Data Load
+            Load Rejection Data
           </motion.button>
         </motion.div>
       )}

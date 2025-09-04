@@ -1,3 +1,4 @@
+// src/components/ConfigTab.jsx - Updated with Real API Integration
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
@@ -12,14 +13,12 @@ import {
 } from 'lucide-react';
 
 // Redux
-import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { useSelector, useDispatch } from 'react-redux';
 import { 
-  selectConfig, 
-  selectConfigLoading, 
-  selectConnectionStatus 
-} from '../store/selectors';
-import { updateConfig } from '../store/slices/configSlice';
-import { testSheetsConnection, testDbConnection } from '../store/thunks/configThunks';
+  updateConfig,
+  setLoading,
+  setConnectionStatus
+} from '../store/slices/configSlice';
 import { showAlert } from '../store/slices/uiSlice';
 
 // Animation variants
@@ -40,10 +39,10 @@ const staggerItem = {
 };
 
 const ConfigTab = () => {
-  const dispatch = useAppDispatch();
-  const config = useAppSelector(selectConfig);
-  const isLoading = useAppSelector(selectConfigLoading);
-  const connectionStatus = useAppSelector(selectConnectionStatus);
+  const dispatch = useDispatch();
+  const config = useSelector((state) => state.config);
+  const isLoading = useSelector((state) => state.config.isLoading);
+  const connectionStatus = useSelector((state) => state.config.connectionStatus);
   
   const fileInputRef = useRef(null);
   
@@ -60,6 +59,10 @@ const ConfigTab = () => {
             serviceAccountFileName: file.name, 
             serviceAccountContent: jsonContent 
           }));
+          dispatch(showAlert({ 
+            message: "Service account file loaded successfully", 
+            type: 'success' 
+          }));
         } catch (error) {
           dispatch(showAlert({ 
             message: "Invalid JSON file.", 
@@ -75,49 +78,171 @@ const ConfigTab = () => {
     }
   };
 
-  const handleTestSheetsConnection = () => {
-    dispatch(testSheetsConnection(config));
+  const handleTestSheetsConnection = async () => {
+    dispatch(setLoading(true));
+    
+    try {
+      const response = await fetch('/api/test_sheets_connection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          serviceAccountContent: config.serviceAccountContent,
+          vendorDataUrl: config.vendorDataUrl,
+          vqcDataUrl: config.vqcDataUrl,
+          ftDataUrl: config.ftDataUrl,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.status === 'success') {
+        dispatch(setConnectionStatus({ type: 'sheets', status: 'success' }));
+        dispatch(showAlert({ 
+          message: 'Sheets connection successful!', 
+          type: 'success' 
+        }));
+      } else {
+        throw new Error(result.message || 'Connection test failed');
+      }
+    } catch (error) {
+      dispatch(setConnectionStatus({ type: 'sheets', status: 'error' }));
+      dispatch(showAlert({ 
+        message: `Sheets connection failed: ${error.message}`, 
+        type: 'error' 
+      }));
+      console.error('Sheets connection error:', error);
+    } finally {
+      dispatch(setLoading(false));
+    }
   };
 
-  const handleTestDbConnection = () => {
-    dispatch(testDbConnection(config));
+  const handleTestDbConnection = async () => {
+    dispatch(setLoading(true));
+    
+    try {
+      const response = await fetch('/api/db/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dbHost: config.dbHost,
+          dbPort: config.dbPort,
+          dbName: config.dbName,
+          dbUser: config.dbUser,
+          dbPassword: config.dbPassword,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.status === 'success') {
+        dispatch(setConnectionStatus({ type: 'db', status: 'success' }));
+        dispatch(showAlert({ 
+          message: 'Database connection successful!', 
+          type: 'success' 
+        }));
+      } else {
+        throw new Error(result.message || 'Database connection failed');
+      }
+    } catch (error) {
+      dispatch(setConnectionStatus({ type: 'db', status: 'error' }));
+      dispatch(showAlert({ 
+        message: `Database connection failed: ${error.message}`, 
+        type: 'error' 
+      }));
+      console.error('DB connection error:', error);
+    } finally {
+      dispatch(setLoading(false));
+    }
   };
 
   const handleCreateSchema = async () => {
+    if (connectionStatus.db !== 'success') {
+      dispatch(showAlert({ 
+        message: 'Please test database connection first', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    dispatch(setLoading(true));
+    
     try {
-      const response = await fetch('/api/create-schema', {
+      const response = await fetch('/api/db/schema', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      const result = await response.json();
       
-      if (response.ok) {
-        dispatch(showAlert({ message: 'Schema created successfully!', type: 'success' }));
+      if (response.ok && result.status === 'success') {
+        dispatch(showAlert({ 
+          message: 'Schema created successfully!', 
+          type: 'success' 
+        }));
+        console.log('Schema creation logs:', result.logs);
       } else {
-        throw new Error('Schema creation failed');
+        throw new Error(result.message || 'Schema creation failed');
       }
     } catch (error) {
-      dispatch(showAlert({ message: 'Schema creation failed', type: 'error' }));
+      dispatch(showAlert({ 
+        message: `Schema creation failed: ${error.message}`, 
+        type: 'error' 
+      }));
+      console.error('Schema creation error:', error);
+    } finally {
+      dispatch(setLoading(false));
     }
   };
 
   const handleClearDatabase = async () => {
-    if (window.confirm('Are you sure you want to clear all data from the database?')) {
-      try {
-        const response = await fetch('/api/clear-database', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(config),
-        });
-        
-        if (response.ok) {
-          dispatch(showAlert({ message: 'Database cleared successfully!', type: 'success' }));
-        } else {
-          throw new Error('Database clear failed');
-        }
-      } catch (error) {
-        dispatch(showAlert({ message: 'Database clear failed', type: 'error' }));
+    if (connectionStatus.db !== 'success') {
+      dispatch(showAlert({ 
+        message: 'Please test database connection first', 
+        type: 'error' 
+      }));
+      return;
+    }
+
+    const confirmClear = window.confirm(
+      'Are you sure you want to clear all data from the database? This action cannot be undone.'
+    );
+    
+    if (!confirmClear) return;
+
+    dispatch(setLoading(true));
+    
+    try {
+      const response = await fetch('/api/db/clear', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      
+      if (response.ok && result.status === 'success') {
+        dispatch(showAlert({ 
+          message: 'Database cleared successfully!', 
+          type: 'success' 
+        }));
+      } else {
+        throw new Error(result.message || 'Database clear failed');
       }
+    } catch (error) {
+      dispatch(showAlert({ 
+        message: `Database clear failed: ${error.message}`, 
+        type: 'error' 
+      }));
+      console.error('Database clear error:', error);
+    } finally {
+      dispatch(setLoading(false));
     }
   };
 
@@ -191,7 +316,7 @@ const ConfigTab = () => {
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
           onClick={handleTestSheetsConnection} 
-          disabled={isLoading} 
+          disabled={isLoading || !config.serviceAccountContent} 
           className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
         >
           {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
@@ -205,7 +330,7 @@ const ConfigTab = () => {
             className="mt-4 flex items-center gap-2"
           >
             <CheckCircle className="w-5 h-5 text-green-500" />
-            <span className="text-green-600 font-medium">Sheets connection successful!</span>
+            <span className="text-green-600 dark:text-green-400 font-medium">Sheets connection successful!</span>
           </motion.div>
         )}
 
@@ -216,7 +341,7 @@ const ConfigTab = () => {
             className="mt-4 flex items-center gap-2"
           >
             <XCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-600 font-medium">Sheets connection failed. Check console for details.</span>
+            <span className="text-red-600 dark:text-red-400 font-medium">Sheets connection failed. Check console for details.</span>
           </motion.div>
         )}
       </motion.div>
@@ -288,7 +413,8 @@ const ConfigTab = () => {
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
             onClick={handleCreateSchema} 
-            className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
+            disabled={connectionStatus.db !== 'success'}
+            className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
           >
             <RefreshCw className="w-5 h-5" />
             Create Schema
@@ -298,7 +424,8 @@ const ConfigTab = () => {
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
             onClick={handleClearDatabase} 
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
+            disabled={connectionStatus.db !== 'success'}
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
           >
             <Database className="w-5 h-5" />
             Clear Database
@@ -312,7 +439,7 @@ const ConfigTab = () => {
             className="mt-4 flex items-center gap-2"
           >
             <CheckCircle className="w-5 h-5 text-green-500" />
-            <span className="text-green-600 font-medium">Database connection successful!</span>
+            <span className="text-green-600 dark:text-green-400 font-medium">Database connection successful!</span>
           </motion.div>
         )}
 
@@ -323,7 +450,7 @@ const ConfigTab = () => {
             className="mt-4 flex items-center gap-2"
           >
             <XCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-600 font-medium">Database connection failed. Check console for details.</span>
+            <span className="text-red-600 dark:text-red-400 font-medium">Database connection failed. Check console for details.</span>
           </motion.div>
         )}
       </motion.div>

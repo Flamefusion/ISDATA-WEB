@@ -1,3 +1,4 @@
+// src/components/PreviewTab.jsx - Updated with Real API Integration
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Database, RefreshCw, Loader } from 'lucide-react';
@@ -6,7 +7,7 @@ import {
   setPreviewData, 
   setLoading, 
   setError,
-  loadPreviewData as loadPreviewDataAction 
+  clearData
 } from '../store/slices/dataSlice';
 import { showAlert } from '../store/slices/uiSlice';
 
@@ -40,69 +41,42 @@ const PreviewTab = () => {
   }, [previewData]);
 
   const handleLoadPreviewData = async () => {
-    dispatch(loadPreviewDataAction());
+    dispatch(setLoading(true));
+    dispatch(setError(null));
 
     try {
-      // Simulate API call - replace with your actual API endpoint
-      const response = await fetch('/api/preview-data');
-      
+      const response = await fetch('/api/data', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to load preview data');
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // For demo purposes, create some mock data
-      const mockData = [
-        {
-          date: '2024-01-15',
-          vendor: 'Vendor A',
-          mo_number: 'MO001',
-          serial_number: 'RNG000001',
-          sku: 'SKU001',
-          ring_size: '7',
-          vqc_status: 'Pass',
-          ft_status: 'Pass',
-          vqc_reason: '',
-          ft_reason: '',
-          created_at: '2024-01-15 10:00:00',
-          updated_at: '2024-01-15 10:30:00'
-        },
-        {
-          date: '2024-01-15',
-          vendor: 'Vendor B',
-          mo_number: 'MO002',
-          serial_number: 'RNG000002',
-          sku: 'SKU002',
-          ring_size: '8',
-          vqc_status: 'Fail',
-          ft_status: 'Pass',
-          vqc_reason: 'Scratches',
-          ft_reason: '',
-          created_at: '2024-01-15 10:05:00',
-          updated_at: '2024-01-15 10:35:00'
-        },
-        // Add more mock data...
-        ...Array.from({ length: 48 }, (_, i) => ({
-          date: '2024-01-15',
-          vendor: `Vendor ${String.fromCharCode(67 + (i % 5))}`,
-          mo_number: `MO${String(i + 3).padStart(3, '0')}`,
-          serial_number: `RNG${String(i + 3).padStart(6, '0')}`,
-          sku: `SKU${String(i + 3).padStart(3, '0')}`,
-          ring_size: String(6 + (i % 5)),
-          vqc_status: i % 4 === 0 ? 'Fail' : 'Pass',
-          ft_status: i % 5 === 0 ? 'Fail' : 'Pass',
-          vqc_reason: i % 4 === 0 ? ['Scratches', 'Dents', 'Color'][i % 3] : '',
-          ft_reason: i % 5 === 0 ? ['Size Issue', 'Weight Issue'][i % 2] : '',
-          created_at: `2024-01-15 ${String(10 + (i % 8)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00`,
-          updated_at: `2024-01-15 ${String(10 + (i % 8)).padStart(2, '0')}:${String((i + 30) % 60).padStart(2, '0')}:00`
-        }))
-      ];
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
 
-      dispatch(setPreviewData(mockData));
+      // Format dates for better display
+      const formattedData = data.map(record => ({
+        ...record,
+        date: record.date ? new Date(record.date).toLocaleDateString() : '',
+        created_at: record.created_at ? new Date(record.created_at).toLocaleString() : '',
+        updated_at: record.updated_at ? new Date(record.updated_at).toLocaleString() : '',
+      }));
+
+      dispatch(setPreviewData(formattedData));
       dispatch(showAlert({ 
-        message: `Loaded ${mockData.length} records`, 
+        message: `Loaded ${formattedData.length} records`, 
         type: 'success' 
       }));
     } catch (err) {
+      console.error('Preview data error:', err);
       dispatch(setError(err.message));
       dispatch(showAlert({ 
         message: 'Failed to load preview data', 
@@ -111,6 +85,44 @@ const PreviewTab = () => {
     } finally {
       dispatch(setLoading(false));
     }
+  };
+
+  const formatCellValue = (value, columnName) => {
+    if (value === null || value === undefined || value === '') {
+      return '-';
+    }
+    
+    // Handle status columns with badges
+    if (columnName.includes('status')) {
+      const status = String(value).toLowerCase();
+      const isPass = ['pass', 'accepted'].includes(status);
+      return (
+        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+          isPass 
+            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+            : status !== '-' && status !== ''
+              ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+              : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+        }`}>
+          {value || '-'}
+        </span>
+      );
+    }
+    
+    // Handle reason columns with truncation
+    if (columnName.includes('reason')) {
+      const reasonText = String(value);
+      if (reasonText.length > 30) {
+        return (
+          <span title={reasonText} className="cursor-help">
+            {reasonText.substring(0, 30)}...
+          </span>
+        );
+      }
+      return reasonText;
+    }
+    
+    return String(value);
   };
 
   return (
@@ -138,10 +150,28 @@ const PreviewTab = () => {
           <p className="text-red-600 dark:text-red-400 font-medium">
             Error: {error}
           </p>
+          <p className="text-red-500 dark:text-red-300 text-sm mt-1">
+            Make sure the database is configured and contains data. Try running a migration first.
+          </p>
         </motion.div>
       )}
 
-      {previewData.length > 0 ? (
+      {isLoading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center py-16"
+        >
+          <div className="text-center">
+            <Loader className="w-8 h-8 animate-spin text-green-500 mx-auto mb-4" />
+            <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+              Loading Preview Data...
+            </p>
+          </div>
+        </motion.div>
+      )}
+
+      {previewData.length > 0 && !isLoading ? (
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
           animate={{ opacity: 1, y: 0 }} 
@@ -152,7 +182,7 @@ const PreviewTab = () => {
               Preview Data ({previewData.length} records)
             </h3>
             <p className="text-gray-600 dark:text-gray-300 mt-1">
-              Showing first 50 records of the dataset
+              Showing {Math.min(50, previewData.length)} of {previewData.length} records from the database
             </p>
           </div>
 
@@ -173,28 +203,18 @@ const PreviewTab = () => {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700/30">
                 {previewData.slice(0, 50).map((row, index) => (
                   <motion.tr 
-                    key={index} 
+                    key={row.id || index} 
                     initial={{ opacity: 0 }} 
                     animate={{ opacity: 1 }} 
-                    transition={{ delay: index * 0.05 }} 
+                    transition={{ delay: Math.min(index * 0.02, 1) }} 
                     className="hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors duration-150"
                   >
                     {columns.map(col => (
                       <td 
                         key={col} 
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200 font-mono"
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200"
                       >
-                        {col.includes('status') ? (
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            row[col] === 'Pass' 
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}>
-                            {row[col]}
-                          </span>
-                        ) : (
-                          String(row[col] || '')
-                        )}
+                        {formatCellValue(row[col], col)}
                       </td>
                     ))}
                   </motion.tr>
@@ -202,16 +222,44 @@ const PreviewTab = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Table Footer with Stats */}
+          <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700/30">
+            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+              <div className="flex items-center gap-6">
+                <span>Total Records: {previewData.length}</span>
+                {previewData.length > 0 && (
+                  <>
+                    <span>
+                      VQC Pass: {previewData.filter(r => ['pass', 'accepted'].includes(String(r.vqc_status || '').toLowerCase())).length}
+                    </span>
+                    <span>
+                      FT Pass: {previewData.filter(r => ['pass', 'accepted'].includes(String(r.ft_status || '').toLowerCase())).length}
+                    </span>
+                  </>
+                )}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Last updated: {new Date().toLocaleTimeString()}
+              </div>
+            </div>
+          </div>
         </motion.div>
-      ) : (
+      ) : !isLoading && !error && (
         <div className="text-center py-16 bg-gray-50 dark:bg-black/90 rounded-2xl">
           <Database className="w-12 h-12 mx-auto text-gray-400" />
           <h3 className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">
             No Data to Preview
           </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
-            Click 'Refresh Data' to fetch from the database.
+            The database appears to be empty. Try running a migration first.
           </p>
+          <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-400">
+            <p>1. Configure Google Sheets connection in the Configuration tab</p>
+            <p>2. Test your database connection</p>
+            <p>3. Run a data migration</p>
+            <p>4. Then return here to preview your data</p>
+          </div>
         </div>
       )}
     </motion.div>

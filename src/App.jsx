@@ -1,20 +1,10 @@
-// src/App.jsx
+// src/App.jsx - COMPLETE VERSION with all tabs
 import React, { useEffect } from 'react';
-import { Provider } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
 
-// Redux Store
 import { store } from './store/store';
-
-// Redux Hooks and Actions
-import { useAppSelector, useAppDispatch } from './store/hooks';
-import {
-  selectIsDarkMode,
-  selectActiveTab,
-  selectIsSettingsPanelOpen,
-  selectCustomAlert,
-} from './store/selectors';
 import {
   setActiveTab,
   toggleSettingsPanel,
@@ -33,15 +23,10 @@ import RejectionTrendsTab from './components/RejectionTrendsTab';
 import SettingsPanel from './components/SettingsPanel';
 import CustomAlert from './components/CustomAlert';
 
-// App Content Component (to use Redux hooks)
 const AppContent = () => {
-  const dispatch = useAppDispatch();
-  const isDarkMode = useAppSelector(selectIsDarkMode);
-  const activeTab = useAppSelector(selectActiveTab);
-  const isSettingsPanelOpen = useAppSelector(selectIsSettingsPanelOpen);
-  const customAlert = useAppSelector(selectCustomAlert);
+  const dispatch = useDispatch();
+  const { isDarkMode, activeTab, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
 
-  // Dark mode effect
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
@@ -165,7 +150,6 @@ const AppContent = () => {
   );
 };
 
-// Main App Component with Redux Provider
 const App = () => {
   return (
     <Provider store={store}>
