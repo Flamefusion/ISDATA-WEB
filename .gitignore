@@ -24,3 +24,9 @@ dist-ssr
 *.sln
 *.sw?
 __pycache__
+
+# Test
+/rings_app.egg-info/
+.coverage
+coverage.xml
+testlog.txt
