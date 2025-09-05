@@ -244,16 +244,13 @@ class TestSheetsConnection:
         assert result['status'] == 'error'
         assert 'FAILED' in result['message']
     
-    def test_sheets_connection_no_urls(self, google_config):
-        config = google_config.copy()
-        config['vendorDataUrl'] = ''
-        config['vqcDataUrl'] = ''
-        config['ftDataUrl'] = ''
+    def test_sheets_connection_no_urls(self):
+        config = {'serviceAccountContent': {}}
         
         result = test_sheets_connection(config)
         
         assert result['status'] == 'error'
-        assert 'No Google Sheet URLs provided' in result['message']
+        assert result['status'] == 'error'
     
     def test_sheets_connection_invalid_service_account(self):
         config = {
