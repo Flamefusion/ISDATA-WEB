@@ -4,7 +4,7 @@ Test configuration and fixtures for the rings application.
 import os
 import pytest
 import psycopg2
-from unittest.mock import Mock, patch, MagicMock, MagicMock
+from unittest.mock import Mock, patch
 from app import create_app
 from app.database import init_db_pool
 
@@ -33,9 +33,9 @@ def runner(app):
 def mock_db_connection():
     """Mock database connection for unit tests."""
     with patch('app.database.get_db_connection') as mock_get_conn:
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_conn = Mock()
+        mock_cursor = Mock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_get_conn.return_value = mock_conn
         
         with patch('app.database.return_db_connection') as mock_return_conn:

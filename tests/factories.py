@@ -18,21 +18,22 @@ class Step7DataFactory(factory.Factory):
     
     # 3DE TECH data
     UID = factory.LazyAttribute(lambda o: fake.unique.bothify(text='3DE###'))
-    factory.LazyAttribute(lambda o: f"MO{fake.unique.random_number(digits=3)}")
+    # Fix: Use proper attribute names for 3DE MO
+    _3DE_MO = factory.LazyAttribute(lambda o: f"MO{fake.unique.random_number(digits=3)}")
     SKU = factory.LazyAttribute(lambda o: f"SKU{fake.random_number(digits=3)}")
     SIZE = factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
     
     # IHC data
     IHC = factory.LazyAttribute(lambda o: fake.unique.bothify(text='IHC###'))
-    factory.LazyAttribute(lambda o: f"IHCMO{fake.unique.random_number(digits=3)}")
-    factory.LazyAttribute(lambda o: f"IHCSKU{fake.random_number(digits=3)}")
-    factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
+    IHC_MO = factory.LazyAttribute(lambda o: f"IHCMO{fake.unique.random_number(digits=3)}")
+    IHC_SKU = factory.LazyAttribute(lambda o: f"IHCSKU{fake.random_number(digits=3)}")
+    IHC_SIZE = factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
     
     # MAKENICA data
     MAKENICA = factory.LazyAttribute(lambda o: fake.unique.bothify(text='MK###'))
-    factory.LazyAttribute(lambda o: f"MKMO{fake.unique.random_number(digits=3)}")
-    factory.LazyAttribute(lambda o: f"MKSKU{fake.random_number(digits=3)}")
-    factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
+    MK_MO = factory.LazyAttribute(lambda o: f"MKMO{fake.unique.random_number(digits=3)}")
+    MAKENICA_SKU = factory.LazyAttribute(lambda o: f"MKSKU{fake.random_number(digits=3)}")
+    MAKENICA_SIZE = factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
 
 class VQCDataFactory(factory.Factory):
     """Factory for generating VQC data."""
@@ -42,12 +43,15 @@ class VQCDataFactory(factory.Factory):
     
     UID = factory.LazyAttribute(lambda o: fake.bothify(text='???###'))
     Status = factory.LazyAttribute(lambda o: fake.random_element(elements=('ACCEPTED', 'REJECTED')))
-    Reason = factory.LazyAttribute(lambda o: 
-        fake.random_element(elements=(
-            '', 'BLACK GLUE', 'WHITE PATCH ON BATTERY', 'MICRO BUBBLES',
-            'SENSOR ISSUE', 'SCRATCHES ON RESIN'
-        )) if o.Status == 'REJECTED' else ''
-    )
+    
+    @factory.lazy_attribute
+    def Reason(self):
+        if self.Status == 'REJECTED':
+            return fake.random_element(elements=(
+                'BLACK GLUE', 'WHITE PATCH ON BATTERY', 'MICRO BUBBLES',
+                'SENSOR ISSUE', 'SCRATCHES ON RESIN'
+            ))
+        return ''
 
 class FTDataFactory(factory.Factory):
     """Factory for generating FT (Functional Test) data."""
@@ -56,13 +60,17 @@ class FTDataFactory(factory.Factory):
         model = dict
     
     UID = factory.LazyAttribute(lambda o: fake.bothify(text='???###'))
-    factory.LazyAttribute(lambda o: fake.random_element(elements=('PASS', 'FAIL')))
-    Comments = factory.LazyAttribute(lambda o: 
-        fake.random_element(elements=(
-            '', 'BATTERY ISSUE', 'CHARGING CODE ISSUE', 'NOT CHARGING',
-            'BLUETOOTH HEIGHT ISSUE', 'CURRENT ISSUE'
-        )) if getattr(o, 'Test Result', 'PASS') == 'FAIL' else ''
-    )
+    # Fix: Use proper attribute name for Test Result
+    Test_Result = factory.LazyAttribute(lambda o: fake.random_element(elements=('PASS', 'FAIL')))
+    
+    @factory.lazy_attribute
+    def Comments(self):
+        if getattr(self, 'Test_Result', 'PASS') == 'FAIL':
+            return fake.random_element(elements=(
+                'BATTERY ISSUE', 'CHARGING CODE ISSUE', 'NOT CHARGING',
+                'BLUETOOTH HEIGHT ISSUE', 'CURRENT ISSUE'
+            ))
+        return ''
 
 class RingDataFactory(factory.Factory):
     """Factory for generating merged ring data."""
@@ -77,19 +85,25 @@ class RingDataFactory(factory.Factory):
     sku = factory.LazyAttribute(lambda o: f"SKU{fake.random_number(digits=3)}")
     ring_size = factory.LazyAttribute(lambda o: str(fake.random_int(min=6, max=12)))
     vqc_status = factory.LazyAttribute(lambda o: fake.random_element(elements=('ACCEPTED', 'REJECTED', '')))
-    vqc_reason = factory.LazyAttribute(lambda o: 
-        fake.random_element(elements=(
-            'BLACK GLUE', 'WHITE PATCH ON BATTERY', 'MICRO BUBBLES',
-            'SENSOR ISSUE', 'SCRATCHES ON RESIN'
-        )) if o.vqc_status == 'REJECTED' else ''
-    )
     ft_status = factory.LazyAttribute(lambda o: fake.random_element(elements=('PASS', 'FAIL', '')))
-    ft_reason = factory.LazyAttribute(lambda o: 
-        fake.random_element(elements=(
-            'BATTERY ISSUE', 'CHARGING CODE ISSUE', 'NOT CHARGING',
-            'BLUETOOTH HEIGHT ISSUE', 'CURRENT ISSUE'
-        )) if o.ft_status == 'FAIL' else ''
-    )
+    
+    @factory.lazy_attribute
+    def vqc_reason(self):
+        if self.vqc_status == 'REJECTED':
+            return fake.random_element(elements=(
+                'BLACK GLUE', 'WHITE PATCH ON BATTERY', 'MICRO BUBBLES',
+                'SENSOR ISSUE', 'SCRATCHES ON RESIN'
+            ))
+        return ''
+    
+    @factory.lazy_attribute
+    def ft_reason(self):
+        if self.ft_status == 'FAIL':
+            return fake.random_element(elements=(
+                'BATTERY ISSUE', 'CHARGING CODE ISSUE', 'NOT CHARGING',
+                'BLUETOOTH HEIGHT ISSUE', 'CURRENT ISSUE'
+            ))
+        return ''
 
 class GoogleConfigFactory(factory.Factory):
     """Factory for generating Google Sheets configuration."""
@@ -97,16 +111,19 @@ class GoogleConfigFactory(factory.Factory):
     class Meta:
         model = dict
     
-    serviceAccountContent = factory.LazyAttribute(lambda o: {
-        'type': 'service_account',
-        'project_id': f'test-project-{fake.random_number(digits=6)}',
-        'private_key_id': fake.uuid4(),
-        'private_key': '-----BEGIN PRIVATE KEY-----\ntest-private-key\n-----END PRIVATE KEY-----\n',
-        'client_email': fake.email(),
-        'client_id': fake.random_number(digits=12),
-        'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
-        'token_uri': 'https://oauth2.googleapis.com/token'
-    })
+    @factory.lazy_attribute
+    def serviceAccountContent(self):
+        return {
+            'type': 'service_account',
+            'project_id': f'test-project-{fake.random_number(digits=6)}',
+            'private_key_id': fake.uuid4(),
+            'private_key': '-----BEGIN PRIVATE KEY-----\ntest-private-key\n-----END PRIVATE KEY-----\n',
+            'client_email': fake.email(),
+            'client_id': str(fake.random_number(digits=12)),
+            'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+            'token_uri': 'https://oauth2.googleapis.com/token'
+        }
+    
     vendorDataUrl = factory.LazyAttribute(lambda o: f"https://docs.google.com/spreadsheets/d/{fake.uuid4()}/edit")
     vqcDataUrl = factory.LazyAttribute(lambda o: f"https://docs.google.com/spreadsheets/d/{fake.uuid4()}/edit")
     ftDataUrl = factory.LazyAttribute(lambda o: f"https://docs.google.com/spreadsheets/d/{fake.uuid4()}/edit")

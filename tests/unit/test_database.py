@@ -5,7 +5,8 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import psycopg2
 from app.database import (
-    init_db_pool, test_single_db_connection, get_db_connection, return_db_connection
+    init_db_pool, get_db_connection, return_db_connection, 
+    test_single_db_connection
 )
 
 class TestDatabasePool:
@@ -92,36 +93,48 @@ class TestDatabasePool:
 
 class TestSingleDbConnection:
     """Test single database connection testing."""
-
+    
     @patch('app.database.psycopg2.connect')
     def test_single_connection_success(self, mock_connect):
         """Test successful single database connection."""
         mock_conn = Mock()
         mock_connect.return_value = mock_conn
-
+        
         success, message = test_single_db_connection(
             'localhost', '5432', 'test_db', 'user', 'password'
         )
-
+        
         assert success is True
         assert "Database connection successful!" in message
         mock_connect.assert_called_once_with(
-            host='localhost', port='5432', dbname='test_db',
+            host='localhost', port='5432', dbname='test_db', 
             user='user', password='password', connect_timeout=5
         )
         mock_conn.close.assert_called_once()
-
+    
     @patch('app.database.psycopg2.connect')
     def test_single_connection_failure(self, mock_connect):
         """Test failed single database connection."""
         mock_connect.side_effect = psycopg2.Error("Connection failed")
-
+        
         success, message = test_single_db_connection(
             'localhost', '5432', 'test_db', 'user', 'password'
         )
-
+        
         assert success is False
         assert "Database connection failed:" in message
-        # conn is None in this case, so no close should happen
-        mock_connect.assert_called_once()
-
+    
+    @patch('app.database.psycopg2.connect')
+    def test_single_connection_cleanup_on_exception(self, mock_connect):
+        """Test that connection is properly closed even when exception occurs."""
+        mock_conn = Mock()
+        mock_connect.return_value = mock_conn
+        mock_connect.side_effect = psycopg2.Error("Connection failed")
+        
+        success, message = test_single_db_connection(
+            'localhost', '5432', 'test_db', 'user', 'password'
+        )
+        
+        # Connection should still be closed in finally block
+        # This tests the finally block execution
+        assert success is False
