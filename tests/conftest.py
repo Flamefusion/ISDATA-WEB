@@ -6,7 +6,9 @@ import pytest
 import psycopg2
 from unittest.mock import Mock, patch, MagicMock, MagicMock
 from app import create_app
-from app.database import init_db_pool
+from app.database import init_db_pool, get_db_connection, return_db_connection
+from app.routes.db_routes import create_schema_endpoint
+
 
 @pytest.fixture(scope='session')
 def app():
@@ -35,7 +37,7 @@ def mock_db_connection():
     with patch('app.database.get_db_connection') as mock_get_conn:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_get_conn.return_value = mock_conn
         
         with patch('app.database.return_db_connection') as mock_return_conn:
@@ -145,7 +147,7 @@ def db_config():
     return {
         'dbHost': 'localhost',
         'dbPort': '5432',
-        'dbName': 'test_rings_db',
+        'dbName': 'test_db',
         'dbUser': 'test_user',
         'dbPassword': 'test_password'
     }

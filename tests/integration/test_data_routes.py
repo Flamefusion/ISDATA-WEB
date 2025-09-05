@@ -76,15 +76,15 @@ class TestDataRoutes:
             assert data['status'] == 'error'
     
     def test_migrate_success(self, client, google_config, mock_gspread, 
-                           sample_step7_data, sample_vqc_data, sample_ft_data):
+                           sample_step7_data, sample_vqc_data, sample_ft_data, mock_db_connection):
         """Test successful data migration."""
         mock_gc, mock_sheet, mock_worksheet = mock_gspread
+        mock_conn, mock_cursor = mock_db_connection
         
         with patch('app.routes.data_routes.Credentials.from_service_account_info'), \
              patch('app.routes.data_routes.gspread.authorize', return_value=mock_gc), \
              patch('app.routes.data_routes.load_sheets_data_parallel') as mock_load, \
-             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge, \
-             patch('app.routes.data_routes.get_db_connection') as mock_get_conn:
+             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge:
             
             # Setup mocks
             mock_load.return_value = (
@@ -96,11 +96,7 @@ class TestDataRoutes:
                 ['Merge completed']
             )
             
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
             mock_cursor.rowcount = 1
-            mock_get_conn.return_value = mock_conn
             
             response = client.post('/api/migrate',
                                  data=json.dumps(google_config),
@@ -166,8 +162,8 @@ class TestDataRoutes:
             )
             
             # Mock database connection to fail
-            mock_conn = Mock()
-            mock_cursor = Mock()
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
             mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
             mock_cursor.execute.side_effect = psycopg2.Error("Database error")
             mock_get_conn.return_value = mock_conn
@@ -185,9 +181,10 @@ class TestDataRoutes:
 class TestDataValidation:
     """Test data validation in migration process."""
     
-    def test_migrate_with_invalid_dates(self, client, google_config, mock_gspread):
+    def test_migrate_with_invalid_dates(self, client, google_config, mock_gspread, mock_db_connection):
         """Test migration handling of invalid date formats."""
         mock_gc, mock_sheet, mock_worksheet = mock_gspread
+        mock_conn, mock_cursor = mock_db_connection
         
         invalid_data = [{
             'date': 'invalid-date',
@@ -199,16 +196,10 @@ class TestDataValidation:
         with patch('app.routes.data_routes.Credentials.from_service_account_info'), \
              patch('app.routes.data_routes.gspread.authorize', return_value=mock_gc), \
              patch('app.routes.data_routes.load_sheets_data_parallel') as mock_load, \
-             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge, \
-             patch('app.routes.data_routes.get_db_connection') as mock_get_conn:
+             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge:
             
             mock_load.return_value = ([], {}, [], ['Loading completed'])
             mock_merge.return_value = (invalid_data, ['Merge completed'])
-            
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_get_conn.return_value = mock_conn
             
             response = client.post('/api/migrate',
                                  data=json.dumps(google_config),

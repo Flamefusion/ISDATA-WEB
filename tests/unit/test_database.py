@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 import psycopg2
 from app.database import (
-    init_db_pool, test_single_db_connection, get_db_connection, return_db_connection
+    init_db_pool, check_single_db_connection, get_db_connection, return_db_connection
 )
 
 class TestDatabasePool:
@@ -99,7 +99,7 @@ class TestSingleDbConnection:
         mock_conn = Mock()
         mock_connect.return_value = mock_conn
 
-        success, message = test_single_db_connection(
+        success, message = check_single_db_connection(
             'localhost', '5432', 'test_db', 'user', 'password'
         )
 
@@ -116,7 +116,7 @@ class TestSingleDbConnection:
         """Test failed single database connection."""
         mock_connect.side_effect = psycopg2.Error("Connection failed")
 
-        success, message = test_single_db_connection(
+        success, message = check_single_db_connection(
             'localhost', '5432', 'test_db', 'user', 'password'
         )
 

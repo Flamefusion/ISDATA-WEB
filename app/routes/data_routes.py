@@ -16,7 +16,7 @@ def get_data():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT * FROM rings;')
+        cur.execute('SELECT * FROM public.rings;')
         
         # Fetch column names from cursor description
         colnames = [desc[0] for desc in cur.description]

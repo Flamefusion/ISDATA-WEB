@@ -3,7 +3,7 @@ Integration tests for report routes.
 """
 import json
 import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, MagicMock
 from datetime import datetime
 import psycopg2
 
@@ -11,10 +11,17 @@ import psycopg2
 class TestDailyReport:
     """Test daily report functionality."""
     
-    def test_daily_report_success(self, client, mock_db_connection):
+    def test_daily_report_success(self, client, monkeypatch):
         """Test successful daily report generation."""
-        mock_conn, mock_cursor = mock_db_connection
-        
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
+
         # Mock sample data with different statuses
         mock_cursor.fetchall.return_value = [
             ('3DE TECH', 'ABC123', 'MO001', 'SKU001', '8', 'ACCEPTED', '', 'PASS', '', datetime(2024, 1, 15, 10, 0)),
@@ -123,9 +130,17 @@ class TestDailyReport:
 class TestDailyReportExport:
     """Test daily report export functionality."""
     
-    def test_export_daily_report_excel(self, client, mock_db_connection):
+    def test_export_daily_report_excel(self, client, monkeypatch):
         """Test Excel export of daily report."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.fetchall.return_value = [
             ('2024-01-15', '3DE TECH', 'ABC123', 'MO001', 'SKU001', '8', 'ACCEPTED', '', 'PASS', '', 'Accepted', datetime(2024, 1, 15, 10, 0))
         ]
@@ -136,15 +151,14 @@ class TestDailyReportExport:
             'format': 'excel'
         }
         
-        with patch('pandas.ExcelWriter') as mock_writer:
-            mock_writer.return_value.__enter__.return_value = Mock()
-            
+        with patch('pandas.DataFrame.to_excel') as mock_to_excel:
             response = client.post('/api/reports/export',
                                  data=json.dumps(export_config),
                                  content_type='application/json')
             
             assert response.status_code == 200
             assert 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' in response.headers['Content-Type']
+            mock_to_excel.assert_called_once()
     
     def test_export_daily_report_invalid_format(self, client, mock_db_connection):
         """Test export with invalid format."""
@@ -201,9 +215,16 @@ class TestRejectionTrends:
         assert data['vendor'] == 'IHC'
         assert len(data['dateRange']) == 2
     
-    def test_rejection_trends_vqc_only(self, client, mock_db_connection):
+    def test_rejection_trends_vqc_only(self, client, monkeypatch):
         """Test rejection trends for VQC stage only."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         mock_cursor.fetchall.side_effect = [
             [(datetime(2024, 1, 1).date(),)],
@@ -227,9 +248,16 @@ class TestRejectionTrends:
         assert 'vqc_status IS NOT NULL' in call_args[0]
         assert 'ft_status IS NOT NULL' not in call_args[0]
     
-    def test_rejection_trends_ft_only(self, client, mock_db_connection):
+    def test_rejection_trends_ft_only(self, client, monkeypatch):
         """Test rejection trends for FT stage only."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         mock_cursor.fetchall.side_effect = [
             [(datetime(2024, 1, 1).date(),)],
@@ -290,9 +318,16 @@ class TestRejectionTrends:
 class TestRejectionTrendsExport:
     """Test rejection trends export functionality."""
     
-    def test_export_rejection_trends_csv(self, client, mock_db_connection):
+    def test_export_rejection_trends_csv(self, client, monkeypatch):
         """Test CSV export of rejection trends."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         mock_cursor.fetchall.side_effect = [
             [(datetime(2024, 1, 1).date(),)],
@@ -315,9 +350,16 @@ class TestRejectionTrendsExport:
         assert response.headers['Content-Type'] == 'text/csv; charset=utf-8'
         assert 'rejection_trends_2024-01-01_to_2024-01-01_IHC.csv' in response.headers['Content-Disposition']
     
-    def test_export_rejection_trends_excel(self, client, mock_db_connection):
+    def test_export_rejection_trends_excel(self, client, monkeypatch):
         """Test Excel export of rejection trends."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         mock_cursor.fetchall.side_effect = [
             [(datetime(2024, 1, 1).date(),)],
@@ -332,29 +374,29 @@ class TestRejectionTrendsExport:
             'rejectionStage': 'vqc'
         }
         
-        with patch('pandas.ExcelWriter') as mock_writer, \
-             patch('openpyxl.styles.PatternFill'), \
-             patch('openpyxl.styles.Font'), \
-             patch('openpyxl.styles.Alignment'):
-            
-            mock_writer.return_value.__enter__.return_value = Mock()
-            mock_writer.return_value.__enter__.return_value.book = Mock()
-            mock_writer.return_value.__enter__.return_value.sheets = {'Rejection Trends': Mock()}
-            
+        with patch('pandas.DataFrame.to_excel') as mock_to_excel:
             response = client.post('/api/reports/rejection-trends/export',
                                  data=json.dumps(export_config),
                                  content_type='application/json')
             
             assert response.status_code == 200
             assert 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' in response.headers['Content-Type']
+            mock_to_excel.assert_called_once()
 
 @pytest.mark.integration
 class TestReportBusinessLogic:
     """Test business logic in reports."""
     
-    def test_daily_report_status_logic(self, client, mock_db_connection):
+    def test_daily_report_status_logic(self, client, monkeypatch):
         """Test correct status determination logic in daily report."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         # Test different status combinations
         mock_cursor.fetchall.return_value = [
@@ -388,9 +430,16 @@ class TestReportBusinessLogic:
         assert data['totalRejected'] == 3
         assert data['totalPending'] == 1
     
-    def test_rejection_trends_categorization(self, client, mock_db_connection):
+    def test_rejection_trends_categorization(self, client, monkeypatch):
         """Test rejection reason categorization in trends report."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.report_routes.get_db_connection", mock_get_conn)
         
         mock_cursor.fetchall.side_effect = [
             [(datetime(2024, 1, 1).date(),)],

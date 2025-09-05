@@ -10,9 +10,17 @@ import psycopg2
 class TestSearchRoutes:
     """Test search route endpoints."""
     
-    def test_search_with_serial_numbers(self, client, mock_db_connection):
+    def test_search_with_serial_numbers(self, client, monkeypatch):
         """Test search by serial numbers."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -40,9 +48,17 @@ class TestSearchRoutes:
         assert 'UPPER(serial_number) = ANY(%s)' in call_args[0][0]
         assert ['ABC123', 'DEF456'] in call_args[0][1]
     
-    def test_search_with_mo_numbers(self, client, mock_db_connection):
+    def test_search_with_mo_numbers(self, client, monkeypatch):
         """Test search by MO numbers."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -62,9 +78,17 @@ class TestSearchRoutes:
         assert 'UPPER(mo_number) = ANY(%s)' in call_args[0][0]
         assert ['MO001', 'MO002'] in call_args[0][1]
     
-    def test_search_with_date_range(self, client, mock_db_connection):
+    def test_search_with_date_range(self, client, monkeypatch):
         """Test search with date range."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -85,7 +109,7 @@ class TestSearchRoutes:
         assert 'date >= %s' in call_args[0][0]
         assert 'date <= %s' in call_args[0][0]
     
-    def test_search_with_invalid_date(self, client, mock_db_connection):
+    def test_search_with_invalid_date(self, client, monkeypatch):
         """Test search with invalid date format."""
         search_filters = {
             'dateFrom': 'invalid-date'
@@ -100,9 +124,17 @@ class TestSearchRoutes:
         assert 'error' in data
         assert 'Invalid dateFrom format' in data['error']
     
-    def test_search_with_vendor_filter(self, client, mock_db_connection):
+    def test_search_with_vendor_filter(self, client, monkeypatch):
         """Test search with vendor filter."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -122,9 +154,17 @@ class TestSearchRoutes:
         assert 'vendor = ANY(%s)' in call_args[0][0]
         assert ['3DE TECH', 'IHC'] in call_args[0][1]
     
-    def test_search_with_status_filters(self, client, mock_db_connection):
+    def test_search_with_status_filters(self, client, monkeypatch):
         """Test search with VQC and FT status filters."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -145,9 +185,17 @@ class TestSearchRoutes:
         assert 'vqc_status = ANY(%s)' in call_args[0][0]
         assert 'ft_status = ANY(%s)' in call_args[0][0]
     
-    def test_search_with_rejection_reason(self, client, mock_db_connection):
+    def test_search_with_rejection_reason(self, client, monkeypatch):
         """Test search with rejection reason filter."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -179,9 +227,16 @@ class TestSearchRoutes:
             data = json.loads(response.data)
             assert 'error' in data
     
-    def test_get_search_filters_success(self, client, mock_db_connection):
+    def test_get_search_filters_success(self, client, monkeypatch):
         """Test getting search filter options."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
         
         # Mock multiple cursor calls for different filter options
         mock_cursor.fetchall.side_effect = [
@@ -205,9 +260,17 @@ class TestSearchRoutes:
         assert '3DE TECH' in data['vendors']
         assert 'ACCEPTED' in data['vqc_statuses']
     
-    def test_export_search_results_csv(self, client, mock_db_connection):
+    def test_export_search_results_csv(self, client, monkeypatch):
         """Test exporting search results as CSV."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -250,9 +313,17 @@ class TestSearchRoutes:
 class TestSearchValidation:
     """Test search input validation."""
     
-    def test_search_empty_serial_numbers(self, client, mock_db_connection):
+    def test_search_empty_serial_numbers(self, client, monkeypatch):
         """Test search with empty serial numbers string."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)
@@ -272,9 +343,17 @@ class TestSearchValidation:
         call_args = mock_cursor.execute.call_args
         assert 'UPPER(serial_number) = ANY(%s)' not in call_args[0][0]
     
-    def test_search_result_limit(self, client, mock_db_connection):
+    def test_search_result_limit(self, client, monkeypatch):
         """Test that search results are limited to 5000 records."""
-        mock_conn, mock_cursor = mock_db_connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+
+        def mock_get_conn():
+            return mock_conn
+
+        monkeypatch.setattr("app.routes.search_routes.get_db_connection", mock_get_conn)
+
         mock_cursor.description = [
             ('date',), ('vendor',), ('mo_number',), ('serial_number',),
             ('vqc_status',), ('ft_status',), ('vqc_reason',), ('ft_reason',)

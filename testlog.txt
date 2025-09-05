@@ -1,0 +1,278 @@
+(.venv) flamefusion@AETHER:~/web$ make test
+PYTHONPATH=. pytest tests/ -v -m "not slow" --tb=short
+/home/flamefusion/web/.venv/lib/python3.12/site-packages/pytest_postgresql/executor.py:31: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+=================================================================== test session starts ====================================================================
+platform linux -- Python 3.12.3, pytest-7.4.3, pluggy-1.6.0 -- /home/flamefusion/web/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /home/flamefusion/web
+configfile: pytest.ini
+plugins: postgresql-5.0.0, cov-4.1.0, mock-3.12.0, Faker-20.1.0, env-1.1.3, asyncio-0.21.1, flask-1.3.0
+asyncio: mode=Mode.STRICT
+collected 70 items
+
+tests/integration/test_data_routes.py::TestDataRoutes::test_get_data_success FAILED                                                                  [  1%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_get_data_database_error PASSED                                                           [  2%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_test_sheets_connection_success PASSED                                                    [  4%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_test_sheets_connection_failure PASSED                                                    [  5%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_success FAILED                                                                   [  7%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_google_api_failure PASSED                                                        [  8%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_no_data PASSED                                                                   [ 10%]
+tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_database_error FAILED                                                            [ 11%]
+tests/integration/test_data_routes.py::TestDataValidation::test_migrate_with_invalid_dates FAILED                                                    [ 12%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_db_test_success PASSED                                                                 [ 14%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_db_test_failure PASSED                                                                 [ 15%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_db_test_missing_fields PASSED                                                          [ 17%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_create_schema_success FAILED                                                           [ 18%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_create_schema_database_error PASSED                                                    [ 20%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_clear_database_success FAILED                                                          [ 21%]
+tests/integration/test_db_routes.py::TestDatabaseRoutes::test_clear_database_error PASSED                                                            [ 22%]
+tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_success FAILED                                                           [ 24%]
+tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_specific_vendor PASSED                                                   [ 25%]
+tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_no_data PASSED                                                           [ 27%]
+tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_missing_date PASSED                                                      [ 28%]
+tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_database_error PASSED                                                    [ 30%]
+tests/integration/test_report_routes.py::TestDailyReportExport::test_export_daily_report_excel FAILED                                                [ 31%]
+tests/integration/test_report_routes.py::TestDailyReportExport::test_export_daily_report_invalid_format PASSED                                       [ 32%]
+tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_success PASSED                                                   [ 34%]
+tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_vqc_only FAILED                                                  [ 35%]
+tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_ft_only FAILED                                                   [ 37%]
+tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_missing_params PASSED                                            [ 38%]
+tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_database_error PASSED                                            [ 40%]
+tests/integration/test_report_routes.py::TestRejectionTrendsExport::test_export_rejection_trends_csv PASSED                                          [ 41%]
+tests/integration/test_report_routes.py::TestRejectionTrendsExport::test_export_rejection_trends_excel FAILED                                        [ 42%]
+tests/integration/test_report_routes.py::TestReportBusinessLogic::test_daily_report_status_logic FAILED                                              [ 44%]
+tests/integration/test_report_routes.py::TestReportBusinessLogic::test_rejection_trends_categorization FAILED                                        [ 45%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_serial_numbers FAILED                                                    [ 47%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_mo_numbers FAILED                                                        [ 48%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_date_range FAILED                                                        [ 50%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_invalid_date PASSED                                                      [ 51%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_vendor_filter FAILED                                                     [ 52%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_status_filters FAILED                                                    [ 54%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_rejection_reason FAILED                                                  [ 55%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_search_database_error PASSED                                                         [ 57%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_get_search_filters_success FAILED                                                    [ 58%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_export_search_results_csv FAILED                                                     [ 60%]
+tests/integration/test_search_routes.py::TestSearchRoutes::test_export_search_results_error PASSED                                                   [ 61%]
+tests/integration/test_search_routes.py::TestSearchValidation::test_search_empty_serial_numbers FAILED                                               [ 62%]
+tests/integration/test_search_routes.py::TestSearchValidation::test_search_result_limit FAILED                                                       [ 64%]
+tests/unit/test_data_handler.py::test_sheets_connection <- app/data_handler.py PASSED                                                                [ 65%]
+tests/unit/test_data_handler.py::TestFindColumn::test_find_column_exact_match PASSED                                                                 [ 67%]
+tests/unit/test_data_handler.py::TestFindColumn::test_find_column_case_insensitive PASSED                                                            [ 68%]
+tests/unit/test_data_handler.py::TestFindColumn::test_find_column_with_patterns_list PASSED                                                          [ 70%]
+tests/unit/test_data_handler.py::TestFindColumn::test_find_column_not_found PASSED                                                                   [ 71%]
+tests/unit/test_data_handler.py::TestMergeRingDataFast::test_merge_empty_step7_data PASSED                                                           [ 72%]
+tests/unit/test_data_handler.py::TestMergeRingDataFast::test_merge_with_valid_data PASSED                                                            [ 74%]
+tests/unit/test_data_handler.py::TestMergeRingDataFast::test_merge_removes_duplicates PASSED                                                         [ 75%]
+tests/unit/test_data_handler.py::TestMergeRingDataFast::test_merge_with_missing_serial_numbers PASSED                                                [ 77%]
+tests/unit/test_data_handler.py::TestLoadSheetData::test_load_step7_sheet_success PASSED                                                             [ 78%]
+tests/unit/test_data_handler.py::TestLoadSheetData::test_load_vqc_sheet_success PASSED                                                               [ 80%]
+tests/unit/test_data_handler.py::TestLoadSheetData::test_load_sheet_data_exception_handling PASSED                                                   [ 81%]
+tests/unit/test_data_handler.py::TestLoadSheetsDataParallel::test_parallel_loading_success PASSED                                                    [ 82%]
+tests/unit/test_data_handler.py::TestSheetsConnection::test_sheets_connection_success PASSED                                                         [ 84%]
+tests/unit/test_data_handler.py::TestSheetsConnection::test_sheets_connection_failure PASSED                                                         [ 85%]
+tests/unit/test_data_handler.py::TestSheetsConnection::test_sheets_connection_no_urls FAILED                                                         [ 87%]
+tests/unit/test_data_handler.py::TestSheetsConnection::test_sheets_connection_invalid_service_account PASSED                                         [ 88%]
+tests/unit/test_database.py::TestDatabasePool::test_init_db_pool_success PASSED                                                                      [ 90%]
+tests/unit/test_database.py::TestDatabasePool::test_init_db_pool_failure PASSED                                                                      [ 91%]
+tests/unit/test_database.py::TestDatabasePool::test_get_db_connection_success PASSED                                                                 [ 92%]
+tests/unit/test_database.py::TestDatabasePool::test_get_db_connection_no_pool PASSED                                                                 [ 94%]
+tests/unit/test_database.py::TestDatabasePool::test_return_db_connection PASSED                                                                      [ 95%]
+tests/unit/test_database.py::TestDatabasePool::test_return_db_connection_no_pool PASSED                                                              [ 97%]
+tests/unit/test_database.py::TestSingleDbConnection::test_single_connection_success PASSED                                                           [ 98%]
+tests/unit/test_database.py::TestSingleDbConnection::test_single_connection_failure PASSED                                                           [100%]
+
+========================================================================= FAILURES =========================================================================
+___________________________________________________________ TestDataRoutes.test_get_data_success ___________________________________________________________
+tests/integration/test_data_routes.py:31: in test_get_data_success
+    assert len(data) == 2
+E   assert 0 == 2
+E    +  where 0 = len([])
+------------------------------------------------------------------- Captured stdout call -------------------------------------------------------------------
+Database connection pool initialized successfully.
+___________________________________________________________ TestDataRoutes.test_migrate_success ____________________________________________________________
+tests/integration/test_data_routes.py:111: in test_migrate_success
+    response_text = response.data.decode('utf-8')
+.venv/lib/python3.12/site-packages/werkzeug/wrappers/response.py:281: in get_data
+    self._ensure_sequence()
+.venv/lib/python3.12/site-packages/werkzeug/wrappers/response.py:339: in _ensure_sequence
+    self.make_sequence()
+.venv/lib/python3.12/site-packages/werkzeug/wrappers/response.py:354: in make_sequence
+    self.response = list(self.iter_encoded())
+.venv/lib/python3.12/site-packages/werkzeug/wrappers/response.py:32: in _iter_encoded
+    for item in iterable:
+.venv/lib/python3.12/site-packages/werkzeug/wsgi.py:256: in __next__
+    return self._next()
+.venv/lib/python3.12/site-packages/werkzeug/wsgi.py:256: in __next__
+    return self._next()
+.venv/lib/python3.12/site-packages/werkzeug/wrappers/response.py:32: in _iter_encoded
+    for item in iterable:
+app/routes/data_routes.py:165: in generate
+    return_db_connection(conn)
+app/database.py:40: in return_db_connection
+    db_pool.putconn(conn)
+.venv/lib/python3.12/site-packages/psycopg2/pool.py:177: in putconn
+    self._putconn(conn, key, close)
+.venv/lib/python3.12/site-packages/psycopg2/pool.py:103: in _putconn
+    raise PoolError("trying to put unkeyed connection")
+E   psycopg2.pool.PoolError: trying to put unkeyed connection
+________________________________________________________ TestDataRoutes.test_migrate_database_error ________________________________________________________
+tests/integration/test_data_routes.py:172: in test_migrate_database_error
+    mock_cursor.execute.side_effect = psycopg2.Error("Database error")
+E   AttributeError: type object 'MagicMock' has no attribute 'execute'
+____________________________________________________ TestDataValidation.test_migrate_with_invalid_dates ____________________________________________________
+tests/integration/test_data_routes.py:210: in test_migrate_with_invalid_dates
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+/usr/lib/python3.12/unittest/mock.py:660: in __getattr__
+    raise AttributeError(name)
+E   AttributeError: __enter__
+______________________________________________________ TestDatabaseRoutes.test_create_schema_success _______________________________________________________
+tests/integration/test_db_routes.py:73: in test_create_schema_success
+    assert mock_cursor.execute.call_count >= 4  # Multiple SQL statements
+E   AssertionError: assert 0 >= 4
+E    +  where 0 = <MagicMock name='get_db_connection().cursor().execute' id='139900476301168'>.call_count
+E    +    where <MagicMock name='get_db_connection().cursor().execute' id='139900476301168'> = <MagicMock name='get_db_connection().cursor()' id='139900476497488'>.execute
+______________________________________________________ TestDatabaseRoutes.test_clear_database_success ______________________________________________________
+/usr/lib/python3.12/unittest/mock.py:935: in assert_called_with
+    raise AssertionError(error_message)
+E   AssertionError: expected call not found.
+E   Expected: execute('TRUNCATE TABLE rings RESTART IDENTITY')
+E     Actual: not called.
+
+During handling of the above exception, another exception occurred:
+tests/integration/test_db_routes.py:105: in test_clear_database_success
+    mock_cursor.execute.assert_called_with("TRUNCATE TABLE rings RESTART IDENTITY")
+E   AssertionError: expected call not found.
+E   Expected: execute('TRUNCATE TABLE rings RESTART IDENTITY')
+E     Actual: not called.
+________________________________________________________ TestDailyReport.test_daily_report_success _________________________________________________________
+tests/integration/test_report_routes.py:40: in test_daily_report_success
+    assert data['totalReceived'] == 3
+E   assert 0 == 3
+___________________________________________________ TestDailyReportExport.test_export_daily_report_excel ___________________________________________________
+tests/integration/test_report_routes.py:146: in test_export_daily_report_excel
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+-------------------------------------------------------------------- Captured log call ---------------------------------------------------------------------
+ERROR    app:report_routes.py:347 Error exporting daily report: [Errno 2] No such file or directory: 'MagicMock/ExcelWriter().__enter__()/139900475823584'
+____________________________________________________ TestRejectionTrends.test_rejection_trends_vqc_only ____________________________________________________
+tests/integration/test_report_routes.py:226: in test_rejection_trends_vqc_only
+    call_args = mock_cursor.execute.call_args_list[1][0]
+E   IndexError: list index out of range
+____________________________________________________ TestRejectionTrends.test_rejection_trends_ft_only _____________________________________________________
+tests/integration/test_report_routes.py:252: in test_rejection_trends_ft_only
+    call_args = mock_cursor.execute.call_args_list[1][0]
+E   IndexError: list index out of range
+_______________________________________________ TestRejectionTrendsExport.test_export_rejection_trends_excel _______________________________________________
+tests/integration/test_report_routes.py:348: in test_export_rejection_trends_excel
+    assert response.status_code == 200
+E   assert 500 == 200
+E    +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+-------------------------------------------------------------------- Captured log call ---------------------------------------------------------------------
+ERROR    app:report_routes.py:644 Error generating rejection trends export: [Errno 2] No such file or directory: 'MagicMock/ExcelWriter().__enter__()/139900505096272'
+__________________________________________________ TestReportBusinessLogic.test_daily_report_status_logic __________________________________________________
+tests/integration/test_report_routes.py:386: in test_daily_report_status_logic
+    assert data['totalReceived'] == 5
+E   assert 0 == 5
+_______________________________________________ TestReportBusinessLogic.test_rejection_trends_categorization _______________________________________________
+tests/integration/test_report_routes.py:447: in test_rejection_trends_categorization
+    assert 'ABC123' in csv_content
+E   AssertionError: assert 'ABC123' in 'Date,Vendor,Serial Number,MO Number,SKU,Ring Size,VQC Status,VQC Reason,FT Status,FT Reason,Overall Status,Created At\r\n'
+_____________________________________________________ TestSearchRoutes.test_search_with_serial_numbers _____________________________________________________
+tests/integration/test_search_routes.py:34: in test_search_with_serial_numbers
+    assert len(data) == 1
+E   assert 0 == 1
+E    +  where 0 = len([])
+_______________________________________________________ TestSearchRoutes.test_search_with_mo_numbers _______________________________________________________
+tests/integration/test_search_routes.py:62: in test_search_with_mo_numbers
+    assert 'UPPER(mo_number) = ANY(%s)' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+_______________________________________________________ TestSearchRoutes.test_search_with_date_range _______________________________________________________
+tests/integration/test_search_routes.py:85: in test_search_with_date_range
+    assert 'date >= %s' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+_____________________________________________________ TestSearchRoutes.test_search_with_vendor_filter ______________________________________________________
+tests/integration/test_search_routes.py:122: in test_search_with_vendor_filter
+    assert 'vendor = ANY(%s)' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+_____________________________________________________ TestSearchRoutes.test_search_with_status_filters _____________________________________________________
+tests/integration/test_search_routes.py:145: in test_search_with_status_filters
+    assert 'vqc_status = ANY(%s)' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+____________________________________________________ TestSearchRoutes.test_search_with_rejection_reason ____________________________________________________
+tests/integration/test_search_routes.py:167: in test_search_with_rejection_reason
+    assert 'vqc_reason = ANY(%s) OR ft_reason = ANY(%s)' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+_____________________________________________________ TestSearchRoutes.test_get_search_filters_success _____________________________________________________
+tests/integration/test_search_routes.py:204: in test_get_search_filters_success
+    assert len(data['vendors']) == 3
+E   assert 0 == 3
+E    +  where 0 = len([])
+_____________________________________________________ TestSearchRoutes.test_export_search_results_csv ______________________________________________________
+tests/integration/test_search_routes.py:234: in test_export_search_results_csv
+    assert 'ABC123' in csv_content
+E   AssertionError: assert 'ABC123' in 'date,vendor,mo_number,serial_number,vqc_status,ft_status,vqc_reason,ft_reason\r\n'
+__________________________________________________ TestSearchValidation.test_search_empty_serial_numbers ___________________________________________________
+tests/integration/test_search_routes.py:273: in test_search_empty_serial_numbers
+    assert 'UPPER(serial_number) = ANY(%s)' not in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+______________________________________________________ TestSearchValidation.test_search_result_limit _______________________________________________________
+tests/integration/test_search_routes.py:290: in test_search_result_limit
+    assert 'LIMIT 5000' in call_args[0][0]
+E   TypeError: 'NoneType' object is not subscriptable
+___________________________________________________ TestSheetsConnection.test_sheets_connection_no_urls ____________________________________________________
+tests/unit/test_data_handler.py:256: in test_sheets_connection_no_urls
+    assert 'No Google Sheet URLs provided' in result['message']
+E   AssertionError: assert 'No Google Sheet URLs provided' in 'Incorrect padding'
+===================================================================== warnings summary =====================================================================
+tests/unit/test_data_handler.py::test_sheets_connection
+  /home/flamefusion/web/.venv/lib/python3.12/site-packages/_pytest/python.py:198: PytestReturnNotNoneWarning: Expected None, but tests/unit/test_data_handler.py::test_sheets_connection returned {'status': 'error', 'message': 'Invalid or missing service account JSON content.'}, which will be an error in a future version of pytest.  Did you mean to use `assert` instead of `return`?
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+---------- coverage: platform linux, python 3.12.3-final-0 -----------
+Name                          Stmts   Miss  Cover   Missing
+-----------------------------------------------------------
+app/__init__.py                  21      2    90%   20-21
+app/data_handler.py             171     23    87%   16, 34-35, 38-48, 53, 109, 112, 195-196, 221, 227-229
+app/database.py                  32      0   100%
+app/routes/__init__.py            0      0   100%
+app/routes/data_routes.py       111     11    90%   77-79, 114-117, 159-162
+app/routes/db_routes.py          61      0   100%
+app/routes/report_routes.py     309    147    52%   67-220, 260, 311, 334-337, 391-410, 435-439, 481, 498, 547-558, 587-641
+app/routes/search_routes.py     157     28    82%   44, 59-62, 102-104, 134-136, 157-160, 163-164, 167-168, 171-172, 175-176, 179-180, 183-184, 205
+-----------------------------------------------------------
+TOTAL                           862    211    76%
+Coverage HTML written to dir htmlcov
+Coverage XML written to file coverage.xml
+
+================================================================= short test summary info ==================================================================
+FAILED tests/integration/test_data_routes.py::TestDataRoutes::test_get_data_success - assert 0 == 2
+FAILED tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_success - psycopg2.pool.PoolError: trying to put unkeyed connection
+FAILED tests/integration/test_data_routes.py::TestDataRoutes::test_migrate_database_error - AttributeError: type object 'MagicMock' has no attribute 'execute'
+FAILED tests/integration/test_data_routes.py::TestDataValidation::test_migrate_with_invalid_dates - AttributeError: __enter__
+FAILED tests/integration/test_db_routes.py::TestDatabaseRoutes::test_create_schema_success - AssertionError: assert 0 >= 4
+FAILED tests/integration/test_db_routes.py::TestDatabaseRoutes::test_clear_database_success - AssertionError: expected call not found.
+FAILED tests/integration/test_report_routes.py::TestDailyReport::test_daily_report_success - assert 0 == 3
+FAILED tests/integration/test_report_routes.py::TestDailyReportExport::test_export_daily_report_excel - assert 500 == 200
+FAILED tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_vqc_only - IndexError: list index out of range
+FAILED tests/integration/test_report_routes.py::TestRejectionTrends::test_rejection_trends_ft_only - IndexError: list index out of range
+FAILED tests/integration/test_report_routes.py::TestRejectionTrendsExport::test_export_rejection_trends_excel - assert 500 == 200
+FAILED tests/integration/test_report_routes.py::TestReportBusinessLogic::test_daily_report_status_logic - assert 0 == 5
+FAILED tests/integration/test_report_routes.py::TestReportBusinessLogic::test_rejection_trends_categorization - AssertionError: assert 'ABC123' in 'Date,Vendor,Serial Number,MO Number,SKU,Ring Size,VQC Status,VQC Reason,FT Status,FT Reason,Overall Status,Created ...
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_serial_numbers - assert 0 == 1
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_mo_numbers - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_date_range - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_vendor_filter - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_status_filters - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_search_with_rejection_reason - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_get_search_filters_success - assert 0 == 3
+FAILED tests/integration/test_search_routes.py::TestSearchRoutes::test_export_search_results_csv - AssertionError: assert 'ABC123' in 'date,vendor,mo_number,serial_number,vqc_status,ft_status,vqc_reason,ft_reason\r\n'
+FAILED tests/integration/test_search_routes.py::TestSearchValidation::test_search_empty_serial_numbers - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/integration/test_search_routes.py::TestSearchValidation::test_search_result_limit - TypeError: 'NoneType' object is not subscriptable
+FAILED tests/unit/test_data_handler.py::TestSheetsConnection::test_sheets_connection_no_urls - AssertionError: assert 'No Google Sheet URLs provided' in 'Incorrect padding'
+========================================================= 24 failed, 46 passed, 1 warning in 3.20s =========================================================
+make: *** [Makefile:44: test-fast] Error 1
+(.venv) flamefusion@AETHER:~/w
