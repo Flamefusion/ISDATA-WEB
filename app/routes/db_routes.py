@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import psycopg2
-from app.database import test_single_db_connection, get_db_connection, return_db_connection
+from app.database import check_single_db_connection, get_db_connection, return_db_connection
 
 db_bp = Blueprint('db', __name__)
 
@@ -17,7 +17,7 @@ def test_db_connection():
     if not all([db_host, db_port, db_name, db_user, db_password]):
         return jsonify(status='error', message='All database configuration fields must be provided.'), 400
 
-    success, message = test_single_db_connection(db_host, db_port, db_name, db_user, db_password)
+    success, message = check_single_db_connection(db_host, db_port, db_name, db_user, db_password)
     if success:
         return jsonify(status='success', message=message)
     else:

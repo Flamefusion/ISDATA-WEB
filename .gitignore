@@ -30,3 +30,12 @@ __pycache__
 .coverage
 coverage.xml
 testlog.txt
+
+#UV
+.python-version
+pyproject.toml
+uv.lock
+
+.gemini/
+gha-creds-*.json
+.aider*

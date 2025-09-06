@@ -1,8 +1,7 @@
+import os
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-
-from .database import db_pool
 
 def create_app():
     """Application factory pattern."""
@@ -12,6 +11,14 @@ def create_app():
     # Create Flask app
     app = Flask(__name__)
     CORS(app)
+    
+    # Only initialize database pool if not testing
+    if not os.getenv('TESTING'):
+        try:
+            from .database import init_db_pool
+            init_db_pool()
+        except Exception as e:
+            print(f"Warning: Database pool initialization failed: {e}")
     
     # Error handling
     @app.errorhandler(Exception)

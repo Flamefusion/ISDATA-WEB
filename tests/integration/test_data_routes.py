@@ -10,20 +10,8 @@ import psycopg2
 class TestDataRoutes:
     """Test data route endpoints."""
     
-    def test_get_data_success(self, client, mock_db_connection):
+    def test_get_data_success(self, client, seed_db):
         """Test successful data retrieval."""
-        mock_conn, mock_cursor = mock_db_connection
-        
-        # Mock cursor description and data
-        mock_cursor.description = [
-            ('id',), ('date',), ('vendor',), ('serial_number',), 
-            ('vqc_status',), ('ft_status',)
-        ]
-        mock_cursor.fetchall.return_value = [
-            (1, '2024-01-15', '3DE TECH', 'ABC123', 'ACCEPTED', 'PASS'),
-            (2, '2024-01-15', 'IHC', 'IHC001', 'REJECTED', 'FAIL')
-        ]
-        
         response = client.get('/api/data')
         
         assert response.status_code == 200
@@ -83,8 +71,7 @@ class TestDataRoutes:
         with patch('app.routes.data_routes.Credentials.from_service_account_info'), \
              patch('app.routes.data_routes.gspread.authorize', return_value=mock_gc), \
              patch('app.routes.data_routes.load_sheets_data_parallel') as mock_load, \
-             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge, \
-             patch('app.routes.data_routes.get_db_connection') as mock_get_conn:
+             patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge:
             
             # Setup mocks
             mock_load.return_value = (
@@ -95,12 +82,6 @@ class TestDataRoutes:
                 [{'serial_number': 'ABC123', 'vendor': '3DE TECH', 'vqc_status': 'ACCEPTED'}],
                 ['Merge completed']
             )
-            
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_cursor.rowcount = 1
-            mock_get_conn.return_value = mock_conn
             
             response = client.post('/api/migrate',
                                  data=json.dumps(google_config),
@@ -154,7 +135,8 @@ class TestDataRoutes:
              patch('app.routes.data_routes.gspread.authorize', return_value=mock_gc), \
              patch('app.routes.data_routes.load_sheets_data_parallel') as mock_load, \
              patch('app.routes.data_routes.merge_ring_data_fast') as mock_merge, \
-             patch('app.routes.data_routes.get_db_connection') as mock_get_conn:
+             patch('app.routes.data_routes.get_db_connection') as mock_get_conn, \
+             patch('app.routes.data_routes.return_db_connection'):
             
             mock_load.return_value = (
                 sample_step7_data, sample_vqc_data, sample_ft_data, 
@@ -166,8 +148,8 @@ class TestDataRoutes:
             )
             
             # Mock database connection to fail
-            mock_conn = Mock()
-            mock_cursor = Mock()
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
             mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
             mock_cursor.execute.side_effect = psycopg2.Error("Database error")
             mock_get_conn.return_value = mock_conn
@@ -205,8 +187,8 @@ class TestDataValidation:
             mock_load.return_value = ([], {}, [], ['Loading completed'])
             mock_merge.return_value = (invalid_data, ['Merge completed'])
             
-            mock_conn = Mock()
-            mock_cursor = Mock()
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
             mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
             mock_get_conn.return_value = mock_conn
             
