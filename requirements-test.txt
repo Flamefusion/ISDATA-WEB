@@ -1,28 +1,28 @@
 # Testing dependencies
-pytest==7.4.3
-pytest-flask==1.3.0
-pytest-mock==3.12.0
-pytest-cov==4.1.0
-pytest-env==1.1.3
+pytest
+pytest-flask
+pytest-mock
+pytest-cov
+pytest-env
 
 # For database testing
-pytest-postgresql==5.0.0
+pytest-postgresql
 
 # For mocking HTTP requests
-responses==0.24.1
+responses
 
 # For testing async code if needed
-pytest-asyncio==0.21.1
+pytest-asyncio
 
 # For generating test data
-factory-boy==3.3.0
-faker==20.1.0
+factory-boy
+faker
 
 # Code quality tools
-flake8>=6.0.0
-black>=22.0.0
-isort>=5.12.0
+flake8
+black
+isort
 
 # Additional test utilities
-freezegun>=1.2.0  # For mocking time/dates
-parameterized>=0.9.0  # For parameterized tests
+freezegun  # For mocking time/dates
+parameterized  # For parameterized tests

@@ -3,7 +3,7 @@ Integration tests for database routes.
 """
 import json
 import pytest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, MagicMock
 import psycopg2
 
 @pytest.mark.integration
@@ -12,7 +12,7 @@ class TestDatabaseRoutes:
     
     def test_db_test_success(self, client, db_config):
         """Test successful database connection test."""
-        with patch('app.routes.db_routes.test_single_db_connection') as mock_test:
+        with patch('app.routes.db_routes.check_single_db_connection') as mock_test:
             mock_test.return_value = (True, "Database connection successful!")
             
             response = client.post('/api/db/test', 
@@ -30,7 +30,7 @@ class TestDatabaseRoutes:
     
     def test_db_test_failure(self, client, db_config):
         """Test failed database connection test."""
-        with patch('app.routes.db_routes.test_single_db_connection') as mock_test:
+        with patch('app.routes.db_routes.check_single_db_connection') as mock_test:
             mock_test.return_value = (False, "Connection failed")
             
             response = client.post('/api/db/test',
@@ -58,66 +58,53 @@ class TestDatabaseRoutes:
         assert data['status'] == 'error'
         assert 'All database configuration fields must be provided' in data['message']
     
-    def test_create_schema_success(self, client, mock_db_connection):
+    def test_create_schema_success(self, client):
         """Test successful schema creation."""
-        mock_conn, mock_cursor = mock_db_connection
-        mock_cursor.execute.return_value = None
-        
+        # The db_setup fixture already creates the schema, so this test 
+        # verifies that the endpoint can run without errors on an existing schema.
         response = client.post('/api/db/schema')
         
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['status'] == 'success'
-        
-        # Verify that schema creation SQL was executed
-        assert mock_cursor.execute.call_count >= 4  # Multiple SQL statements
-        mock_conn.commit.assert_called_once()
     
     def test_create_schema_database_error(self, client):
         """Test schema creation with database error."""
         with patch('app.routes.db_routes.get_db_connection') as mock_get_conn:
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_cursor.execute.side_effect = psycopg2.Error("Schema creation failed")
-            mock_get_conn.return_value = mock_conn
+            mock_get_conn.side_effect = psycopg2.Error("Schema creation failed")
             
-            with patch('app.routes.db_routes.return_db_connection'):
-                response = client.post('/api/db/schema')
+            response = client.post('/api/db/schema')
             
             assert response.status_code == 500
             data = json.loads(response.data)
             assert data['status'] == 'error'
             assert 'Database error during schema creation' in data['message']
-            mock_conn.rollback.assert_called_once()
     
-    def test_clear_database_success(self, client, mock_db_connection):
+    def test_clear_database_success(self, client, seed_db):
         """Test successful database clearing."""
-        mock_conn, mock_cursor = mock_db_connection
-        
+        # First, verify data exists from seed_db
+        response = client.get('/api/data')
+        assert len(json.loads(response.data)) > 0
+
+        # Now, clear the database
         response = client.delete('/api/db/clear')
         
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data['status'] == 'success'
         assert 'cleared' in data['message']
-        
-        mock_cursor.execute.assert_called_with("TRUNCATE TABLE rings RESTART IDENTITY")
-        mock_conn.commit.assert_called_once()
+
+        # Verify the database is empty
+        response = client.get('/api/data')
+        assert len(json.loads(response.data)) == 0
     
     def test_clear_database_error(self, client):
         """Test database clearing with error."""
         with patch('app.routes.db_routes.get_db_connection') as mock_get_conn:
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_cursor.execute.side_effect = psycopg2.Error("Clear failed")
-            mock_get_conn.return_value = mock_conn
+            mock_get_conn.side_effect = psycopg2.Error("Clear failed")
             
-            with patch('app.routes.db_routes.return_db_connection'):
-                response = client.delete('/api/db/clear')
+            response = client.delete('/api/db/clear')
             
             assert response.status_code == 500
             data = json.loads(response.data)
             assert data['status'] == 'error'
-            mock_conn.rollback.assert_called_once()

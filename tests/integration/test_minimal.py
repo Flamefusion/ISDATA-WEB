@@ -8,7 +8,7 @@ from unittest.mock import patch, Mock, MagicMock
 @pytest.mark.integration
 def test_minimal_db_route(client):
     """Minimal test for database route."""
-    with patch('app.routes.db_routes.test_single_db_connection') as mock_test:
+    with patch('app.routes.db_routes.check_single_db_connection') as mock_test:
         mock_test.return_value = (True, "Connection successful")
         
         response = client.post('/api/db/test', 

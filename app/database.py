@@ -39,7 +39,7 @@ def return_db_connection(conn):
     if db_pool:
         db_pool.putconn(conn)
 
-def test_single_db_connection(host, port, dbname, user, password):
+def check_single_db_connection(host, port, dbname, user, password):
     """Attempts to establish a single database connection with provided parameters."""
     conn = None
     try:
