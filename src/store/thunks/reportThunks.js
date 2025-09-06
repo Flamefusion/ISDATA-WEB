@@ -1,12 +1,13 @@
 // src/store/thunks/reportThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const loadReport = createAsyncThunk(
   'report/loadReport',
   async ({ selectedDate, selectedVendor }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/daily', {
+      const response = await apiFetch('/api/reports/daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor }),
@@ -31,7 +32,7 @@ export const loadVendors = createAsyncThunk(
   'report/loadVendors',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
+      const response = await apiFetch('/api/search/filters');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to load vendors');
@@ -49,7 +50,7 @@ export const exportReport = createAsyncThunk(
   'report/exportReport',
   async ({ selectedDate, selectedVendor, format }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/export', {
+      const response = await apiFetch('/api/reports/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor, format }),
@@ -67,7 +68,7 @@ export const exportReport = createAsyncThunk(
       const extension = format === 'excel' ? 'xlsx' : 'csv';
       a.download = `daily_report_${selectedDate}_${selectedVendor}.${extension}`;
       document.body.appendChild(a);
-      a.click();
+a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
 

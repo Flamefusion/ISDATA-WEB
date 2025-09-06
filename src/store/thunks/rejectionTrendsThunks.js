@@ -1,12 +1,13 @@
 // src/store/thunks/rejectionTrendsThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const loadRejectionData = createAsyncThunk(
   'rejectionTrends/loadRejectionData',
   async ({ dateFrom, dateTo, selectedVendor, rejectionStage }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/rejection-trends', {
+      const response = await apiFetch('/api/reports/rejection-trends', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage }),
@@ -34,7 +35,7 @@ export const loadVendorsForTrends = createAsyncThunk(
   'rejectionTrends/loadVendors',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
+      const response = await apiFetch('/api/search/filters');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to load vendors');
@@ -53,7 +54,7 @@ export const exportRejectionTrends = createAsyncThunk(
   'rejectionTrends/exportRejectionTrends',
   async ({ dateFrom, dateTo, selectedVendor, rejectionStage, format }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/rejection-trends/export', {
+      const response = await apiFetch('/api/reports/rejection-trends/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage, format }),

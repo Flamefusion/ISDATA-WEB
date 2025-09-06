@@ -2,13 +2,14 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { setLoading, setConnectionStatus } from '../slices/configSlice';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const testSheetsConnection = createAsyncThunk(
   'config/testSheetsConnection',
   async (config, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/test_sheets_connection', {
+      const response = await apiFetch('/api/test_sheets_connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -44,7 +45,7 @@ export const testDbConnection = createAsyncThunk(
   async (config, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/db/test', {
+      const response = await apiFetch('/api/db/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ export const createSchema = createAsyncThunk(
   async (_, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/db/schema', {
+      const response = await apiFetch('/api/db/schema', {
         method: 'POST',
       });
       
@@ -109,7 +110,7 @@ export const clearDatabase = createAsyncThunk(
   async (_, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/db/clear', {
+      const response = await apiFetch('/api/db/clear', {
         method: 'DELETE',
       });
       

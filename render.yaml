@@ -1,0 +1,48 @@
+# render.yaml
+# This file configures the services for your application on Render.
+
+services:
+  # 1. PostgreSQL Database
+  - name: ch-db
+    type: psql
+    plan: free # You can change this to a paid plan for more resources
+    psqlVersion: 15
+    properties:
+      - key: max_connections
+        value: 100
+
+  # 2. Flask Backend (Web Service)
+  - name: ch-api
+    type: web
+    runtime: python
+    plan: free
+    buildCommand: 'pip install --upgrade pip && pip install -r requirements.txt'
+    startCommand: 'gunicorn run:app'
+    envVars:
+      - key: PYTHON_VERSION
+        value: '3.11'
+      - key: DATABASE_URL
+        fromService:
+          type: psql
+          name: ch-db
+          property: connectionString
+      - key: FLASK_ENV
+        value: production
+
+  # 3. React Frontend (Static Site)
+  - name: ch-web
+    type: static
+    plan: free
+    buildCommand: 'npm install && npm run build'
+    publishPath: './dist'
+    # Add a rewrite rule to support client-side routing (for React Router)
+    routes:
+      - type: rewrite
+        source: '/*'
+        destination: '/index.html'
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: ch-api
+          property: url

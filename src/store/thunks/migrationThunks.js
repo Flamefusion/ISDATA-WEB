@@ -8,6 +8,7 @@ import {
   clearMigrationLog
 } from '../slices/migrationSlice';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const startMigration = createAsyncThunk(
   'migration/startMigration',
@@ -17,7 +18,7 @@ export const startMigration = createAsyncThunk(
     dispatch(addMigrationLog('Starting migration process...'));
 
     try {
-      const response = await fetch('/api/migrate', {
+      const response = await apiFetch('/api/migrate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

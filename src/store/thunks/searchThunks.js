@@ -1,12 +1,13 @@
 // src/store/thunks/searchThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const performSearch = createAsyncThunk(
   'search/performSearch',
   async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search', {
+      const response = await apiFetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(searchFilters),
@@ -34,7 +35,7 @@ export const loadFilterOptions = createAsyncThunk(
   'search/loadFilterOptions',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
+      const response = await apiFetch('/api/search/filters');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to load filter options');
@@ -53,7 +54,7 @@ export const exportSearchResults = createAsyncThunk(
   'search/exportSearchResults',
   async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/export', {
+      const response = await apiFetch('/api/search/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(searchFilters),

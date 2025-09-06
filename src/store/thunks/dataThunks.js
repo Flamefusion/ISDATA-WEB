@@ -2,13 +2,14 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { setPreviewData, setLoading, setError } from '../slices/dataSlice';
 import { showAlert } from '../slices/uiSlice';
+import { apiFetch } from '../../utils/api';
 
 export const loadPreviewData = createAsyncThunk(
   'data/loadPreviewData',
   async (_, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/data');
+      const response = await apiFetch('/api/data');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);

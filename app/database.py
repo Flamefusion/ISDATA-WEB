@@ -11,15 +11,25 @@ def init_db_pool():
     if db_pool:
         db_pool.closeall()
     try:
-        db_pool = pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
-            host=os.getenv('DB_HOST'),
-            port=os.getenv('DB_PORT'),
-            dbname=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD')
-        )
+        database_url = os.getenv('DATABASE_URL')
+        if database_url:
+            # Use DATABASE_URL if available (for Render)
+            db_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=database_url
+            )
+        else:
+            # Fallback to individual variables for local development
+            db_pool = pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                host=os.getenv('DB_HOST'),
+                port=os.getenv('DB_PORT'),
+                dbname=os.getenv('DB_NAME'),
+                user=os.getenv('DB_USER'),
+                password=os.getenv('DB_PASSWORD')
+            )
         print("Database connection pool initialized successfully.")
         return True
     except psycopg2.Error as e:
