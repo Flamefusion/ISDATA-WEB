@@ -8,5 +8,5 @@ google-auth-oauthlib
 google-auth-httplib2
 python-dotenv
 openpyxl
-Werkzeuggunicorn
+Werkzeug
 gunicorn
