@@ -1,4 +1,5 @@
 services:
+  # Your existing backend API
   - name: ch-api
     type: web
     runtime: python
@@ -13,12 +14,12 @@ services:
       - key: FLASK_ENV
         value: production
 
+  # Your frontend as a static site
   - name: ch-frontend
-    type: web
-    runtime: node
-    plan: free
+    type: web           # Note: uses 'web' type
+    runtime: static     # This is the key difference
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    staticPublishPath: ./dist  # Required for static sites
 
 databases:
   - name: ch-db
