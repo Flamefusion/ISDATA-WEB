@@ -7,10 +7,26 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn run:app
     envVars:
-      - key: DATABASE_URL
+      - key: DB_HOST
         fromDatabase:
           name: ch-db
-          property: connectionString
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ch-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: ch-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ch-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ch-db
+          property: password
       - key: FLASK_ENV
         value: production
 
