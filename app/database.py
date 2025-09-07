@@ -1,6 +1,7 @@
 import os
 import psycopg2
 from psycopg2 import pool
+from urllib.parse import urlparse
 
 # Global database connection pool
 db_pool = None
@@ -13,11 +14,17 @@ def init_db_pool():
     try:
         database_url = os.getenv('DATABASE_URL')
         if database_url:
-            # Use DATABASE_URL if available (for Render)
+            # Render provides a DATABASE_URL that might not be a full DSN.
+            # We will parse it and build a proper DSN.
+            result = urlparse(database_url)
+            dsn = (
+                f"postgresql://{result.user}:{result.password}@"
+                f"{result.hostname}:{result.port}/{result.path[1:]}"
+            )
             db_pool = pool.ThreadedConnectionPool(
                 minconn=1,
                 maxconn=10,
-                dsn=database_url
+                dsn=dsn
             )
         else:
             # Fallback to individual variables for local development
@@ -32,7 +39,7 @@ def init_db_pool():
             )
         print("Database connection pool initialized successfully.")
         return True
-    except psycopg2.Error as e:
+    except (psycopg2.Error, ValueError) as e:
         print(f"Error initializing database pool: {e}")
         db_pool = None
         return False
