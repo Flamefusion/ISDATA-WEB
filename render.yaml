@@ -14,12 +14,12 @@ services:
       - key: FLASK_ENV
         value: production
 
-  # Your frontend as a static site
-  - name: ch-frontend
-    type: web           # Note: uses 'web' type
-    runtime: static     # This is the key difference
+  # Your frontend as a static site (NEW NAME)
+  - name: ch-frontend-static  # Different name
+    type: web
+    runtime: static
     buildCommand: npm install && npm run build
-    staticPublishPath: ./dist  # Required for static sites
+    staticPublishPath: ./dist
 
 databases:
   - name: ch-db
