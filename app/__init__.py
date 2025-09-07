@@ -12,13 +12,13 @@ def create_app():
     app = Flask(__name__)
     CORS(app)
     
-    # Only initialize database pool if not testing
-    if not os.getenv('TESTING'):
-        try:
-            from .database import init_db_pool
-            init_db_pool()
-        except Exception as e:
-            print(f"Warning: Database pool initialization failed: {e}")
+    # This is handled in run.py, so it can be removed from the app factory
+    # if not os.getenv('TESTING'):
+    #     try:
+    #         from .database import init_db_pool
+    #         init_db_pool()
+    #     except Exception as e:
+    #         print(f"Warning: Database pool initialization failed: {e}")
     
     # Error handling
     @app.errorhandler(Exception)
