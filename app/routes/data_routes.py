@@ -169,24 +169,19 @@ def migrate():
 @data_bp.route('/test_sheets_connection', methods=['POST'])
 def test_sheets_connection_endpoint():
     """Test connection to Google Sheets."""
-    try:
-        config = request.get_json()
-        if not config:
-            current_app.logger.warning("Request body is empty or not JSON.")
-            return jsonify(status='error', message='Request body must contain valid JSON.'), 400
-    except Exception as e:
-        current_app.logger.error(f"Failed to decode JSON from request body: {e}")
-        return jsonify(status='error', message='Invalid JSON in request body.'), 400
+    config = request.get_json(silent=True)
+    if not config:
+        current_app.logger.warning("Request body is empty or not valid JSON.")
+        return jsonify(status='error', message='Request body must contain valid JSON.'), 400
 
     result = test_sheets_connection(config)
     
     if result.get('status') == 'success':
         return jsonify(result)
     else:
-        # Determine appropriate status code based on error message
         message = result.get('message', '')
         if 'No Google Sheet URLs' in message or 'not valid JSON' in message or 'missing service account' in message:
             status_code = 400
         else:
-            status_code = 500  # Internal server error for other failures
+            status_code = 500
         return jsonify(result), status_code

@@ -7,7 +7,10 @@ db_bp = Blueprint('db', __name__)
 @db_bp.route('/db/test', methods=['POST'])
 def test_db_connection():
     """Tests the database connection using parameters from the request body."""
-    config = request.json
+    config = request.get_json(silent=True)
+    if not config:
+        return jsonify(status='error', message='Request body must contain valid JSON.'), 400
+        
     db_host = config.get('dbHost')
     db_port = config.get('dbPort')
     db_name = config.get('dbName')
