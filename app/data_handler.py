@@ -1,203 +1,154 @@
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+from datetime import datetime
 
-def load_sheet_data(sheet_type, config, gc):
-    """Load data from Google Sheets based on sheet type and return logs."""
-    logs = []
+def _get_col_index(headers, patterns):
+    """Find the index of a column by matching patterns."""
+    for pattern in patterns:
+        try:
+            # Case-insensitive search
+            return [h.lower() for h in headers].index(pattern.lower())
+        except ValueError:
+            continue
+    return -1
+
+def stream_and_merge_data(config, gc):
+    """
+    Streams data from Google Sheets and merges it in a memory-efficient way.
+    Yields merged records one by one.
+    """
+    yield "data: Initializing memory-efficient migration...\n\n"
+
+    # 1. Load VQC and FT data into memory for quick lookups
+    vqc_lookup = {}
+    ft_lookup = {}
+
     try:
-        if sheet_type == 'step7':
-            sheet = gc.open_by_url(config['vendorDataUrl'])
-            ws = sheet.worksheet('Working')
-            logs.append(f"Loading {sheet_type} data...")
-            all_values = ws.get_all_values()
-            if not all_values:
-                return 'step7', [], logs
-            headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
-            data = [dict(zip(headers, row)) for row in all_values[1:]]
-            logs.append(f"Loaded {len(data)} records from {sheet_type}")
-            return 'step7', data, logs
-        
-        elif sheet_type == 'vqc':
-            vqc_data = {}
-            vqc_sheet = gc.open_by_url(config['vqcDataUrl'])
-            logs.append("Loading VQC data...")
-            for vendor in ['IHC', '3DE TECH', 'MAKENICA']:
-                try:
-                    ws = vqc_sheet.worksheet(vendor)
-                    all_values = ws.get_all_values()
-                    if all_values:
-                        headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
-                        vqc_data[vendor] = [dict(zip(headers, row)) for row in all_values[1:]]
-                        logs.append(f"Loaded {len(vqc_data[vendor])} VQC records for {vendor}")
-                except Exception as e:
-                    logs.append(f"Warning: Could not load VQC sheet for '{vendor}': {e}")
-            return 'vqc', vqc_data, logs
-        
-        elif sheet_type == 'ft':
-            sheet = gc.open_by_url(config['ftDataUrl'])
-            ws = sheet.worksheet('Working')
-            logs.append(f"Loading {sheet_type} data...")
-            all_values = ws.get_all_values()
-            if not all_values:
-                return 'ft', [], logs
-            headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
-            data = [dict(zip(headers, row)) for row in all_values[1:]]
-            logs.append(f"Loaded {len(data)} FT records")
-            return 'ft', data, logs
+        yield "data: Loading VQC data into memory...\n\n"
+        vqc_sheet = gc.open_by_url(config['vqcDataUrl'])
+        for vendor in ['IHC', '3DE TECH', 'MAKENICA']:
+            try:
+                ws = vqc_sheet.worksheet(vendor)
+                all_values = ws.get_values()
+                headers = all_values[0]
+                records = [dict(zip(headers, row)) for row in all_values[1:]]
+                for rec in records:
+                    serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
+                    if serial_keys:
+                        serial = str(rec[serial_keys[0]]).strip()
+                        if serial:
+                            status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
+                            reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
+                            vqc_lookup[serial] = {
+                                'vqc_status': rec[status_keys[0]] if status_keys else None,
+                                'vqc_reason': rec[reason_keys[0]] if reason_keys else None
+                            }
+                yield f"data: Loaded {len(records)} VQC records for {vendor}.\n\n"
+            except gspread.WorksheetNotFound:
+                yield f"data: WARNING: VQC worksheet for '{vendor}' not found.\n\n"
+
+        yield "data: Loading FT data into memory...\n\n"
+        ft_sheet = gc.open_by_url(config['ftDataUrl'])
+        ft_ws = ft_sheet.worksheet('Working')
+        all_values = ft_ws.get_values()
+        headers = all_values[0]
+        ft_records = [dict(zip(headers, row)) for row in all_values[1:]]
+        for rec in ft_records:
+            serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
+            if serial_keys:
+                serial = str(rec[serial_keys[0]]).strip()
+                if serial:
+                    status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
+                    reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
+                    ft_lookup[serial] = {
+                        'ft_status': rec[status_keys[0]] if status_keys else None,
+                        'ft_reason': rec[reason_keys[0]] if reason_keys else None
+                    }
+        yield f"data: Loaded {len(ft_records)} FT records into memory.\n\n"
 
     except Exception as e:
-        logs.append(f"ERROR loading {sheet_type} data: {e}")
-        if sheet_type == 'vqc':
-            return 'vqc', {}, logs
-        return sheet_type, [], logs
+        yield f"data: ERROR: Failed to load lookup data: {e}\n\n"
+        return
 
-def find_column(df, patterns):
-    """Find column by matching patterns."""
-    if not isinstance(patterns, list):
-        patterns = [patterns]
-    for pattern in patterns:
-        for col in df.columns:
-            if pattern.lower() == str(col).lower().strip():
-                return col
-    return None
-
-def merge_ring_data_fast(step7_data, vqc_data, ft_data):
-    """Merge ring data from different sources and return logs."""
-    logs = []
-    if not step7_data:
-        return [], ["No Step 7 data provided to merge."]
-
-    logs.append("Reshaping main vendor data...")
-
-    df_step7 = pd.DataFrame(step7_data)
-    vendor_mappings = {
-        '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
-        'IHC': {'serial': 'IHC', 'mo': 'IHC MO', 'sku': 'IHC SKU', 'size': 'IHC SIZE'},
-        'MAKENICA': {'serial': 'MAKENICA', 'mo': 'MK MO', 'sku': 'MAKENICA SKU', 'size': 'MAKENICA SIZE'}
-    }
-    all_vendor_dfs = []
-    date_col = find_column(df_step7, ['logged_timestamp', 'timestamp', 'date'])
-    
-    for vendor, patterns in vendor_mappings.items():
-        serial_col = find_column(df_step7, patterns['serial'])
-        if not serial_col:
-            continue
-        mo_col = find_column(df_step7, patterns['mo'])
-        sku_col = find_column(df_step7, patterns['sku'])
-        size_col = find_column(df_step7, patterns['size'])
+    # 2. Stream and process the main vendor data sheet
+    try:
+        yield "data: Opening main vendor data sheet for streaming...\n\n"
+        vendor_sheet = gc.open_by_url(config['vendorDataUrl'])
+        vendor_ws = vendor_sheet.worksheet('Working')
         
-        cols_to_keep = {
-            date_col: 'date',
-            serial_col: 'serial_number',
-            mo_col: 'mo_number',
-            sku_col: 'sku',
-            size_col: 'ring_size'
-        }
-        cols_to_keep = {k: v for k, v in cols_to_keep.items() if k is not None and k in df_step7.columns}
+        all_rows = vendor_ws.get_all_values()
+        headers = all_rows[0]
         
-        vendor_df = df_step7[list(cols_to_keep.keys())].copy()
-        vendor_df.rename(columns=cols_to_keep, inplace=True)
-        vendor_df['vendor'] = vendor
+        vendor_mappings = {
+            '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
+            'IHC': {'serial': 'IHC', 'mo': 'IHC MO', 'sku': 'IHC SKU', 'size': 'IHC SIZE'},
+            'MAKENICA': {'serial': 'MAKENICA', 'mo': 'MK MO', 'sku': 'MAKENICA SKU', 'size': 'MAKENICA SIZE'}
+        }
         
-        if 'serial_number' in vendor_df.columns:
-            vendor_df.dropna(subset=['serial_number'], inplace=True)
-            vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip()
-            all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
-        else:
-            logs.append(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
-    
-    if not all_vendor_dfs:
-        raise ValueError("Could not process any vendor data from Step 7.")
-    
-    df_main = pd.concat(all_vendor_dfs, ignore_index=True)
-    logs.append(f"Reshaped into {len(df_main)} total records.")
+        date_idx = _get_col_index(headers, ['logged_timestamp', 'Timestamp', 'Date'])
+        
+        vendor_indices = {}
+        for vendor, patterns in vendor_mappings.items():
+            vendor_indices[vendor] = {
+                'serial': _get_col_index(headers, [patterns['serial']]),
+                'mo': _get_col_index(headers, [patterns['mo']]),
+                'sku': _get_col_index(headers, [patterns['sku']]),
+                'size': _get_col_index(headers, [patterns['size']])
+            }
 
-    logs.append("Preparing VQC and FT data...")
-    all_vqc_dfs = [pd.DataFrame(data).assign(vendor=vendor) for vendor, data in vqc_data.items() if data]
-    if all_vqc_dfs:
-        df_vqc = pd.concat(all_vqc_dfs, ignore_index=True)
-        rename_map = {
-            find_column(df_vqc, ['uid', 'serial']): 'serial_number',
-            find_column(df_vqc, ['status', 'result']): 'vqc_status',
-            find_column(df_vqc, ['reason', 'comments']): 'vqc_reason'
-        }
-        df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
-        if 'serial_number' in df_vqc.columns:
-            df_vqc.dropna(subset=['serial_number'], inplace=True)
-            df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip()
-            df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason'] if col in df_vqc.columns]]
-    else:
-        df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason'])
-    
-    df_ft = pd.DataFrame(ft_data)
-    if not df_ft.empty:
-        rename_map = {
-            find_column(df_ft, ['uid', 'serial']): 'serial_number',
-            find_column(df_ft, ['status', 'test result']): 'ft_status',
-            find_column(df_ft, ['reason', 'comments']): 'ft_reason'
-        }
-        df_ft.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
-        if 'serial_number' in df_ft.columns:
-            df_ft.dropna(subset=['serial_number'], inplace=True)
-            df_ft['serial_number'] = df_ft['serial_number'].astype(str).str.strip()
-            df_ft = df_ft[[col for col in ['serial_number', 'ft_status', 'ft_reason'] if col in df_ft.columns]]
-    else:
-        df_ft = pd.DataFrame(columns=['serial_number', 'ft_status', 'ft_reason'])
+        processed_count = 0
+        for row in all_rows[1:]:
+            serial_number, vendor_name = None, None
+            for vendor, indices in vendor_indices.items():
+                s_idx = indices['serial']
+                if s_idx != -1 and len(row) > s_idx and row[s_idx].strip():
+                    serial_number = row[s_idx].strip()
+                    vendor_name = vendor
+                    break
+            
+            if not serial_number:
+                continue
 
-    logs.append("Performing merge...")
-    merged_df = pd.merge(df_main, df_vqc, on=['serial_number', 'vendor'], how='left')
-    if 'serial_number' in merged_df.columns and 'serial_number' in df_ft.columns:
-        merged_df = pd.merge(merged_df, df_ft, on='serial_number', how='left')
-    
-    merged_df.fillna('', inplace=True)
-    
-    initial_count = len(merged_df)
-    logs.append(f"Successfully merged {initial_count} records. Checking for duplicates...")
-    merged_df.drop_duplicates(subset=['serial_number'], keep='last', inplace=True)
-    final_count = len(merged_df)
-    duplicates_found = initial_count - final_count
-    
-    if duplicates_found > 0:
-        logs.append(f"Removed {duplicates_found} duplicate serial number(s). Final record count: {final_count}.")
-    else:
-        logs.append("No duplicate serial numbers found.")
+            indices = vendor_indices[vendor_name]
+            mo_number = row[indices['mo']] if indices['mo'] != -1 and len(row) > indices['mo'] else None
+            sku = row[indices['sku']] if indices['sku'] != -1 and len(row) > indices['sku'] else None
+            ring_size = row[indices['size']] if indices['size'] != -1 and len(row) > indices['size'] else None
+            
+            date_val = row[date_idx] if date_idx != -1 and len(row) > date_idx else None
+            date_obj = None
+            if date_val:
+                try:
+                    dt_obj = datetime.strptime(str(date_val), '%m/%d/%Y %H:%M:%S')
+                    date_obj = dt_obj.date()
+                except (ValueError, TypeError):
+                    pass
 
-    return merged_df.to_dict('records'), logs
+            vqc_info = vqc_lookup.get(serial_number, {})
+            ft_info = ft_lookup.get(serial_number, {})
 
-def load_sheets_data_parallel(config, gc):
-    """Load data from multiple sheets in parallel and return all logs."""
-    step7_data, vqc_data, ft_data = [], {}, []
-    all_logs = []
-    
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = []
-        if config.get('vendorDataUrl'):
-            # The lambda is no longer needed
-            futures.append(executor.submit(load_sheet_data, 'step7', config, gc))
-        if config.get('vqcDataUrl'):
-            futures.append(executor.submit(load_sheet_data, 'vqc', config, gc))
-        if config.get('ftDataUrl'):
-            futures.append(executor.submit(load_sheet_data, 'ft', config, gc))
+            yield {
+                'date': date_obj,
+                'mo_number': mo_number,
+                'vendor': vendor_name,
+                'serial_number': serial_number,
+                'ring_size': ring_size,
+                'sku': sku,
+                'vqc_status': vqc_info.get('vqc_status'),
+                'vqc_reason': vqc_info.get('vqc_reason'),
+                'ft_status': ft_info.get('ft_status'),
+                'ft_reason': ft_info.get('ft_reason'),
+            }
+            processed_count += 1
+            if processed_count % 100 == 0:
+                yield f"data: Processed {processed_count} records...\n\n"
 
-        for future in as_completed(futures):
-            try:
-                # Unpack the logs from the result
-                sheet_type, data, logs = future.result()
-                all_logs.extend(logs) # Add the logs to our main list
-                if sheet_type == 'step7':
-                    step7_data = data
-                elif sheet_type == 'vqc':
-                    vqc_data = data
-                elif sheet_type == 'ft':
-                    ft_data = data
-            except Exception as e:
-                all_logs.append(f"A task failed during parallel sheet loading: {e}")
-    
-    return step7_data, vqc_data, ft_data, all_logs # Return the logs
+        yield f"data: Finished streaming. Total records processed: {processed_count}.\n\n"
 
-import json
+    except Exception as e:
+        yield f"data: ERROR: Failed during streaming and merging: {e}\n\n"
+        return
 
 def test_sheets_connection(config):
     """Test connection to Google Sheets."""
