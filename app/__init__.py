@@ -12,6 +12,13 @@ def create_app():
     app = Flask(__name__)
     CORS(app)
     
+    @app.route('/')
+    def health_check():
+        return {"status": "ok", "message": "Flask app is running"}
+    
+    @app.route('/health')
+    def health():
+        return {"status": "healthy"}
     # This is handled in run.py, so it can be removed from the app factory
     # if not os.getenv('TESTING'):
     #     try:

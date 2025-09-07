@@ -1,12 +1,15 @@
 from app import create_app
 from app.database import init_db_pool
 import os
-
 import logging
 from logging.handlers import RotatingFileHandler
 
 # Create Flask app instance
 app = create_app()
+
+# Initialize database connection pool
+if not os.getenv('TESTING'):
+    init_db_pool()
 
 # Configure logging
 if not app.debug:
@@ -26,14 +29,10 @@ if not app.debug:
     app.logger.info('Application startup')
 
 if __name__ == '__main__':
-    # Initialize database connection pool
-    if not os.getenv('TESTING'):
-        init_db_pool()
-    
     # Use Gunicorn's logger in production
     if 'gunicorn' in os.environ.get('SERVER_SOFTWARE', ''):
         gunicorn_logger = logging.getLogger('gunicorn.error')
         app.logger.handlers = gunicorn_logger.handlers
         app.logger.setLevel(gunicorn_logger.level)
         
-    app.run(debug=False)
+    app.run(debug=False,host='0.0.0.0', port=5000)
