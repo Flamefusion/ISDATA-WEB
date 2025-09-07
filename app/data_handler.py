@@ -197,12 +197,23 @@ def load_sheets_data_parallel(config, gc):
     
     return step7_data, vqc_data, ft_data, all_logs # Return the logs
 
+import json
+
 def test_sheets_connection(config):
     """Test connection to Google Sheets."""
     try:
-        service_account_info = config.get('serviceAccountContent')
-        if not service_account_info or not isinstance(service_account_info, dict):
-            return {'status': 'error', 'message': 'Invalid or missing service account JSON content.'}
+        service_account_content = config.get('serviceAccountContent')
+
+        # If the content is a string, try to parse it as JSON
+        if isinstance(service_account_content, str):
+            try:
+                service_account_info = json.loads(service_account_content)
+            except json.JSONDecodeError:
+                return {'status': 'error', 'message': 'Service account content is not valid JSON.'}
+        elif isinstance(service_account_content, dict):
+            service_account_info = service_account_content
+        else:
+            return {'status': 'error', 'message': 'Invalid or missing service account content.'}
 
         creds = Credentials.from_service_account_info(
             service_account_info,
@@ -216,7 +227,6 @@ def test_sheets_connection(config):
             "FT Data": config.get('ftDataUrl')
         }
 
-        # Check if any URLs are provided
         if not any(sheet_urls.values()):
             return {'status': 'error', 'message': 'No Google Sheet URLs provided for connection test.'}
 
@@ -225,8 +235,7 @@ def test_sheets_connection(config):
         for name, url in sheet_urls.items():
             if not url:
                 results.append(f"✗ {name}: No URL provided.")
-                overall_status = 'error'
-                continue
+                continue  # Don't mark as error if a URL is just missing
             try:
                 sheet = gc.open_by_url(url)
                 results.append(f"✓ {name}: Connected to '{sheet.title}'")
@@ -234,6 +243,16 @@ def test_sheets_connection(config):
                 results.append(f"✗ {name}: FAILED ({e})")
                 overall_status = 'error'
         
-        return {'status': overall_status, 'message': "\n".join(results)}
+        final_message = "\n".join(results)
+        if overall_status == 'error':
+             return {'status': 'error', 'message': final_message}
+        
+        return {'status': 'success', 'message': final_message}
+
     except Exception as e:
-        return {'status': 'error', 'message': str(e)}
+        # Catch-all for other unexpected errors, like auth issues
+        error_message = f"An unexpected error occurred: {e}"
+        # Check if it's a gspread auth error
+        if "invalid_grant" in str(e).lower():
+            error_message = "Google authentication failed. Check your service account credentials."
+        return {'status': 'error', 'message': error_message}
