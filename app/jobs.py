@@ -102,7 +102,7 @@ def run_migration_job(config):
 def process_chunk(cursor, chunk):
     string_buffer = io.StringIO()
     cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
-    null_identifier = '\N'
+    null_identifier = '\\N'
 
     for record in chunk:
         row_data = []
