@@ -3,6 +3,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 from datetime import datetime
+import time
 
 def _get_col_index(headers, patterns):
     """Find the index of a column by matching patterns."""
@@ -24,7 +25,7 @@ def stream_and_merge_data(config, gc):
     # 1. Load VQC and FT data into memory for quick lookups
     vqc_lookup = {}
     ft_lookup = {}
-    chunk_size = 1000
+    chunk_size = 5000
 
     try:
         yield "data: Loading VQC data in chunks...\n\n"
@@ -35,6 +36,7 @@ def stream_and_merge_data(config, gc):
                 row_count = ws.row_count
                 headers = ws.row_values(1)
                 for i in range(2, row_count + 1, chunk_size):
+                    time.sleep(1) # Add a delay to avoid hitting rate limits
                     chunk = ws.get(f'A{i}:{i + chunk_size - 1}')
                     records = [dict(zip(headers, row)) for row in chunk]
                     for rec in records:
@@ -58,6 +60,7 @@ def stream_and_merge_data(config, gc):
         row_count = ft_ws.row_count
         headers = ft_ws.row_values(1)
         for i in range(2, row_count + 1, chunk_size):
+            time.sleep(1) # Add a delay to avoid hitting rate limits
             chunk = ft_ws.get(f'A{i}:{i + chunk_size - 1}')
             ft_records = [dict(zip(headers, row)) for row in chunk]
             for rec in ft_records:
@@ -105,6 +108,7 @@ def stream_and_merge_data(config, gc):
 
         processed_count = 0
         for i in range(2, row_count + 1, chunk_size):
+            time.sleep(1) # Add a delay to avoid hitting rate limits
             chunk = vendor_ws.get(f'A{i}:{i + chunk_size - 1}')
             for row in chunk:
                 serial_number, vendor_name = None, None
