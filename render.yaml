@@ -5,7 +5,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --timeout 1000 run:app
+    startCommand: gunicorn --timeout 300 run:app
     envVars:
       - key: DB_HOST
         fromDatabase:
@@ -29,6 +29,35 @@ services:
           property: password
       - key: FLASK_ENV
         value: production
+
+  # Background worker for processing jobs
+  - name: ch-worker
+    type: worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_jobs.py
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: ch-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ch-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: ch-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ch-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ch-db
+          property: password
 
   # Your frontend as a static site (NEW NAME)
   - name: ch-frontend-static  # Different name
