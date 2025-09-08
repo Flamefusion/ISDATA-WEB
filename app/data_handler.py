@@ -24,49 +24,54 @@ def stream_and_merge_data(config, gc):
     # 1. Load VQC and FT data into memory for quick lookups
     vqc_lookup = {}
     ft_lookup = {}
+    chunk_size = 1000
 
     try:
-        yield "data: Loading VQC data into memory...\n\n"
+        yield "data: Loading VQC data in chunks...\n\n"
         vqc_sheet = gc.open_by_url(config['vqcDataUrl'])
         for vendor in ['IHC', '3DE TECH', 'MAKENICA']:
             try:
                 ws = vqc_sheet.worksheet(vendor)
-                all_values = ws.get_values()
-                headers = all_values[0]
-                records = [dict(zip(headers, row)) for row in all_values[1:]]
-                for rec in records:
-                    serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
-                    if serial_keys:
-                        serial = str(rec[serial_keys[0]]).strip()
-                        if serial:
-                            status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
-                            reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
-                            vqc_lookup[serial] = {
-                                'vqc_status': rec[status_keys[0]] if status_keys else None,
-                                'vqc_reason': rec[reason_keys[0]] if reason_keys else None
-                            }
-                yield f"data: Loaded {len(records)} VQC records for {vendor}.\n\n"
+                row_count = ws.row_count
+                headers = ws.row_values(1)
+                for i in range(2, row_count + 1, chunk_size):
+                    chunk = ws.get(f'A{i}:{i + chunk_size - 1}')
+                    records = [dict(zip(headers, row)) for row in chunk]
+                    for rec in records:
+                        serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
+                        if serial_keys:
+                            serial = str(rec[serial_keys[0]]).strip()
+                            if serial:
+                                status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
+                                reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
+                                vqc_lookup[serial] = {
+                                    'vqc_status': rec[status_keys[0]] if status_keys else None,
+                                    'vqc_reason': rec[reason_keys[0]] if reason_keys else None
+                                }
+                    yield f"data: Loaded {len(records)} VQC records for {vendor} in this chunk.\n\n"
             except gspread.WorksheetNotFound:
                 yield f"data: WARNING: VQC worksheet for '{vendor}' not found.\n\n"
 
-        yield "data: Loading FT data into memory...\n\n"
+        yield "data: Loading FT data in chunks...\n\n"
         ft_sheet = gc.open_by_url(config['ftDataUrl'])
         ft_ws = ft_sheet.worksheet('Working')
-        all_values = ft_ws.get_values()
-        headers = all_values[0]
-        ft_records = [dict(zip(headers, row)) for row in all_values[1:]]
-        for rec in ft_records:
-            serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
-            if serial_keys:
-                serial = str(rec[serial_keys[0]]).strip()
-                if serial:
-                    status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
-                    reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
-                    ft_lookup[serial] = {
-                        'ft_status': rec[status_keys[0]] if status_keys else None,
-                        'ft_reason': rec[reason_keys[0]] if reason_keys else None
-                    }
-        yield f"data: Loaded {len(ft_records)} FT records into memory.\n\n"
+        row_count = ft_ws.row_count
+        headers = ft_ws.row_values(1)
+        for i in range(2, row_count + 1, chunk_size):
+            chunk = ft_ws.get(f'A{i}:{i + chunk_size - 1}')
+            ft_records = [dict(zip(headers, row)) for row in chunk]
+            for rec in ft_records:
+                serial_keys = [key for key in rec.keys() if 'serial' in key.lower() or 'uid' in key.lower()]
+                if serial_keys:
+                    serial = str(rec[serial_keys[0]]).strip()
+                    if serial:
+                        status_keys = [key for key in rec.keys() if 'status' in key.lower() or 'result' in key.lower()]
+                        reason_keys = [key for key in rec.keys() if 'reason' in key.lower() or 'comment' in key.lower()]
+                        ft_lookup[serial] = {
+                            'ft_status': rec[status_keys[0]] if status_keys else None,
+                            'ft_reason': rec[reason_keys[0]] if reason_keys else None
+                        }
+            yield f"data: Loaded {len(ft_records)} FT records in this chunk.\n\n"
 
     except Exception as e:
         yield f"data: ERROR: Failed to load lookup data: {e}\n\n"
@@ -78,8 +83,8 @@ def stream_and_merge_data(config, gc):
         vendor_sheet = gc.open_by_url(config['vendorDataUrl'])
         vendor_ws = vendor_sheet.worksheet('Working')
         
-        all_rows = vendor_ws.get_all_values()
-        headers = all_rows[0]
+        row_count = vendor_ws.row_count
+        headers = vendor_ws.row_values(1)
         
         vendor_mappings = {
             '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
@@ -99,50 +104,52 @@ def stream_and_merge_data(config, gc):
             }
 
         processed_count = 0
-        for row in all_rows[1:]:
-            serial_number, vendor_name = None, None
-            for vendor, indices in vendor_indices.items():
-                s_idx = indices['serial']
-                if s_idx != -1 and len(row) > s_idx and row[s_idx].strip():
-                    serial_number = row[s_idx].strip()
-                    vendor_name = vendor
-                    break
-            
-            if not serial_number:
-                continue
+        for i in range(2, row_count + 1, chunk_size):
+            chunk = vendor_ws.get(f'A{i}:{i + chunk_size - 1}')
+            for row in chunk:
+                serial_number, vendor_name = None, None
+                for vendor, indices in vendor_indices.items():
+                    s_idx = indices['serial']
+                    if s_idx != -1 and len(row) > s_idx and row[s_idx].strip():
+                        serial_number = row[s_idx].strip()
+                        vendor_name = vendor
+                        break
+                
+                if not serial_number:
+                    continue
 
-            indices = vendor_indices[vendor_name]
-            mo_number = row[indices['mo']] if indices['mo'] != -1 and len(row) > indices['mo'] else None
-            sku = row[indices['sku']] if indices['sku'] != -1 and len(row) > indices['sku'] else None
-            ring_size = row[indices['size']] if indices['size'] != -1 and len(row) > indices['size'] else None
-            
-            date_val = row[date_idx] if date_idx != -1 and len(row) > date_idx else None
-            date_obj = None
-            if date_val:
-                try:
-                    dt_obj = datetime.strptime(str(date_val), '%m/%d/%Y %H:%M:%S')
-                    date_obj = dt_obj.date()
-                except (ValueError, TypeError):
-                    pass
+                indices = vendor_indices[vendor_name]
+                mo_number = row[indices['mo']] if indices['mo'] != -1 and len(row) > indices['mo'] else None
+                sku = row[indices['sku']] if indices['sku'] != -1 and len(row) > indices['sku'] else None
+                ring_size = row[indices['size']] if indices['size'] != -1 and len(row) > indices['size'] else None
+                
+                date_val = row[date_idx] if date_idx != -1 and len(row) > date_idx else None
+                date_obj = None
+                if date_val:
+                    try:
+                        dt_obj = datetime.strptime(str(date_val), '%m/%d/%Y %H:%M:%S')
+                        date_obj = dt_obj.date()
+                    except (ValueError, TypeError):
+                        pass
 
-            vqc_info = vqc_lookup.get(serial_number, {})
-            ft_info = ft_lookup.get(serial_number, {})
+                vqc_info = vqc_lookup.get(serial_number, {})
+                ft_info = ft_lookup.get(serial_number, {})
 
-            yield {
-                'date': date_obj,
-                'mo_number': mo_number,
-                'vendor': vendor_name,
-                'serial_number': serial_number,
-                'ring_size': ring_size,
-                'sku': sku,
-                'vqc_status': vqc_info.get('vqc_status'),
-                'vqc_reason': vqc_info.get('vqc_reason'),
-                'ft_status': ft_info.get('ft_status'),
-                'ft_reason': ft_info.get('ft_reason'),
-            }
-            processed_count += 1
-            if processed_count % 100 == 0:
-                yield f"data: Processed {processed_count} records...\n\n"
+                yield {
+                    'date': date_obj,
+                    'mo_number': mo_number,
+                    'vendor': vendor_name,
+                    'serial_number': serial_number,
+                    'ring_size': ring_size,
+                    'sku': sku,
+                    'vqc_status': vqc_info.get('vqc_status'),
+                    'vqc_reason': vqc_info.get('vqc_reason'),
+                    'ft_status': ft_info.get('ft_status'),
+                    'ft_reason': ft_info.get('ft_reason'),
+                }
+                processed_count += 1
+                if processed_count % 100 == 0:
+                    yield f"data: Processed {processed_count} records...\n\n"
 
         yield f"data: Finished streaming. Total records processed: {processed_count}.\n\n"
 
