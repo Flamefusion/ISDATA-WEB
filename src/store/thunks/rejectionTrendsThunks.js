@@ -6,18 +6,8 @@ export const loadRejectionData = createAsyncThunk(
   'rejectionTrends/loadRejectionData',
   async ({ dateFrom, dateTo, selectedVendor, rejectionStage }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/rejection-trends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage }),
-      });
+      const data = await window.api.loadRejectionData({ dateFrom, dateTo, selectedVendor, rejectionStage });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load rejection data');
-      }
-      
-      const data = await response.json();
       dispatch(showAlert({ 
         message: 'Rejection trends data loaded successfully', 
         type: 'success' 
@@ -34,12 +24,7 @@ export const loadVendorsForTrends = createAsyncThunk(
   'rejectionTrends/loadVendors',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to load vendors');
-      }
-      const options = await response.json();
+      const options = await window.api.loadVendorsForTrends();
       // For this tab, we don't want 'all' vendors, so we just return the list
       return options.vendors || [];
     } catch (error) {
@@ -53,23 +38,11 @@ export const exportRejectionTrends = createAsyncThunk(
   'rejectionTrends/exportRejectionTrends',
   async ({ dateFrom, dateTo, selectedVendor, rejectionStage, format }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/rejection-trends/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage, format }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Export failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const { blob, fileName } = await window.api.exportRejectionTrends({ dateFrom, dateTo, selectedVendor, rejectionStage, format });
+      const url = window.URL.createObjectURL(new Blob([new Uint8Array(blob.data)], { type: blob.type }));
       const a = document.createElement('a');
       a.href = url;
-      const extension = format === 'excel' ? 'xlsx' : 'csv';
-      a.download = `rejection_trends_${dateFrom}_to_${dateTo}_${selectedVendor}.${extension}`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();

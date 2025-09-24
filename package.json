@@ -50,6 +50,7 @@
       "electron.js",
       "run.py",
       "app/**/*",
+      "preload.js",
       "!**/node_modules/fsevents/**"
     ],
     "extraResources": [

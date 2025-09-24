@@ -82,22 +82,14 @@ const ConfigTab = () => {
     dispatch(setLoading(true));
     
     try {
-      const response = await fetch('/api/test_sheets_connection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          serviceAccountContent: config.serviceAccountContent,
-          vendorDataUrl: config.vendorDataUrl,
-          vqcDataUrl: config.vqcDataUrl,
-          ftDataUrl: config.ftDataUrl,
-        }),
+      const result = await window.api.testSheetsConnection({
+        serviceAccountContent: config.serviceAccountContent,
+        vendorDataUrl: config.vendorDataUrl,
+        vqcDataUrl: config.vqcDataUrl,
+        ftDataUrl: config.ftDataUrl,
       });
-
-      const result = await response.json();
       
-      if (response.ok && result.status === 'success') {
+      if (result.status === 'success') {
         dispatch(setConnectionStatus({ type: 'sheets', status: 'success' }));
         dispatch(showAlert({ 
           message: 'Sheets connection successful!', 
@@ -122,23 +114,15 @@ const ConfigTab = () => {
     dispatch(setLoading(true));
     
     try {
-      const response = await fetch('/api/db/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          dbHost: config.dbHost,
-          dbPort: config.dbPort,
-          dbName: config.dbName,
-          dbUser: config.dbUser,
-          dbPassword: config.dbPassword,
-        }),
+      const result = await window.api.testDbConnection({
+        dbHost: config.dbHost,
+        dbPort: config.dbPort,
+        dbName: config.dbName,
+        dbUser: config.dbUser,
+        dbPassword: config.dbPassword,
       });
-
-      const result = await response.json();
       
-      if (response.ok && result.status === 'success') {
+      if (result.status === 'success') {
         dispatch(setConnectionStatus({ type: 'db', status: 'success' }));
         dispatch(showAlert({ 
           message: 'Database connection successful!', 
@@ -171,16 +155,9 @@ const ConfigTab = () => {
     dispatch(setLoading(true));
     
     try {
-      const response = await fetch('/api/db/schema', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
+      const result = await window.api.createSchema();
       
-      if (response.ok && result.status === 'success') {
+      if (result.status === 'success') {
         dispatch(showAlert({ 
           message: 'Schema created successfully!', 
           type: 'success' 
@@ -218,16 +195,9 @@ const ConfigTab = () => {
     dispatch(setLoading(true));
     
     try {
-      const response = await fetch('/api/db/clear', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
+      const result = await window.api.clearDatabase();
       
-      if (response.ok && result.status === 'success') {
+      if (result.status === 'success') {
         dispatch(showAlert({ 
           message: 'Database cleared successfully!', 
           type: 'success' 
