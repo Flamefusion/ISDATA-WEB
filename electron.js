@@ -149,7 +149,7 @@ ipcMain.handle('rejection:loadData', async (event, data) => {
 
 ipcMain.handle('rejection:loadVendors', async (event, data) => {
   try {
-    const response = await axios.get('http://localhost:5000/api/reports/vendors');
+    const response = await axios.get('http://localhost:5000/api/vendors');
     return response.data;
   } catch (error) {
     console.error('Error in rejection:loadVendors IPC handler:', error);
@@ -159,7 +159,7 @@ ipcMain.handle('rejection:loadVendors', async (event, data) => {
 
 ipcMain.handle('rejection:exportTrends', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/reports/rejection-trends/export', data, {
+    const response = await axios.post('http://localhost:5000/api/rejection_trends/export', data, {
       responseType: 'arraybuffer'
     });
 

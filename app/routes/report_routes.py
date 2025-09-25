@@ -7,7 +7,7 @@ from app.database import get_db_connection, return_db_connection
 
 report_bp = Blueprint('reports', __name__)
 
-@report_bp.route('/reports/vendors', methods=['GET'])
+@report_bp.route('/vendors', methods=['GET'])
 def get_vendors():
     """Returns a list of unique vendors from the rings table."""
     conn = None
@@ -28,7 +28,7 @@ def get_vendors():
         if conn:
             return_db_connection(conn)
 
-@report_bp.route('/reports/daily', methods=['POST'])
+@report_bp.route('/daily_report', methods=['POST'])
 def get_daily_report():
     """Generates a comprehensive daily production report with correct ring status logic."""
     config = request.json
@@ -269,7 +269,7 @@ def get_daily_report():
         if conn:
             return_db_connection(conn)
 
-@report_bp.route('/reports/export', methods=['POST'])
+@report_bp.route('/export_daily_report', methods=['POST'])
 def export_daily_report():
     """Exports daily report data as CSV or Excel."""
     config = request.json
@@ -371,7 +371,7 @@ def export_daily_report():
         if conn:
             return_db_connection(conn)
 
-@report_bp.route('/reports/rejection-trends', methods=['POST'])
+@report_bp.route('/rejection_trends', methods=['POST'])
 def get_rejection_trends():
     """Generates rejection trends data in spreadsheet format with stage filtering."""
     config = request.json
@@ -488,7 +488,7 @@ def get_rejection_trends():
         if conn:
             return_db_connection(conn)
 
-@report_bp.route('/reports/rejection-trends/export', methods=['POST'])
+@report_bp.route('/rejection_trends/export', methods=['POST'])
 def export_rejection_trends():
     """Exports rejection trends data as CSV or Excel."""
     config = request.json
