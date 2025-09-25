@@ -4,9 +4,9 @@ import { showAlert } from '../slices/uiSlice';
 
 export const loadRejectionData = createAsyncThunk(
   'rejectionTrends/loadRejectionData',
-  async ({ dateFrom, dateTo, selectedVendor, rejectionStage }, { dispatch, rejectWithValue }) => {
+  async ({ dateFrom, dateTo, vendor, rejectionStage }, { dispatch, rejectWithValue }) => {
     try {
-      const data = await window.api.loadRejectionData({ dateFrom, dateTo, selectedVendor, rejectionStage });
+      const data = await window.api.loadRejectionData({ dateFrom, dateTo, vendor, rejectionStage });
       
       dispatch(showAlert({ 
         message: 'Rejection trends data loaded successfully', 
@@ -36,9 +36,9 @@ export const loadVendorsForTrends = createAsyncThunk(
 
 export const exportRejectionTrends = createAsyncThunk(
   'rejectionTrends/exportRejectionTrends',
-  async ({ dateFrom, dateTo, selectedVendor, rejectionStage, format }, { dispatch, rejectWithValue }) => {
+  async ({ dateFrom, dateTo, vendor, rejectionStage, format }, { dispatch, rejectWithValue }) => {
     try {
-      const { blob, fileName } = await window.api.exportRejectionTrends({ dateFrom, dateTo, selectedVendor, rejectionStage, format });
+      const { blob, fileName } = await window.api.exportRejectionTrends({ dateFrom, dateTo, vendor, rejectionStage, format });
       const url = window.URL.createObjectURL(new Blob([new Uint8Array(blob.data)], { type: blob.type }));
       const a = document.createElement('a');
       a.href = url;

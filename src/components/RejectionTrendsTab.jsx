@@ -40,7 +40,7 @@ const RejectionTrendsTab = () => {
       }));
       return;
     }
-    dispatch(loadRejectionData({ dateFrom, dateTo, selectedVendor, rejectionStage }));
+    dispatch(loadRejectionData({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage }));
   };
 
   const handleExport = (format) => {
@@ -48,7 +48,7 @@ const RejectionTrendsTab = () => {
       dispatch(showAlert({ message: 'No data to export', type: 'error' }));
       return;
     }
-    dispatch(exportRejectionTrends({ dateFrom, dateTo, selectedVendor, rejectionStage, format }));
+    dispatch(exportRejectionTrends({ dateFrom, dateTo, vendor: selectedVendor, rejectionStage, format }));
   };
 
   const dateRange = trendsData && trendsData.dateRange ? trendsData.dateRange : [];

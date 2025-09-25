@@ -44,3 +44,4 @@ gha-creds-*.json
 release
 python-portable
 backend
+backend.spec
