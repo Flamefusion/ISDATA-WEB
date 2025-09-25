@@ -8,7 +8,7 @@ export const loadPreviewData = createAsyncThunk(
   async (_, { dispatch }) => {
     dispatch(setLoading(true));
     try {
-      const response = await fetch('/api/data');
+      const response = await fetch('http://localhost:5000/api/data');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);

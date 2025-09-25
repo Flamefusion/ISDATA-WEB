@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // The function your React app will call
   testSheetsConnection: (data) => ipcRenderer.invoke('sheets:test', data),
-  testDbConnection: (data) => ipcRenderer.invoke('db:test', data),
+  connectDb: (data) => ipcRenderer.invoke('db:connect', data),
   createSchema: (data) => ipcRenderer.invoke('db:createSchema', data),
   clearDatabase: (data) => ipcRenderer.invoke('db:clear', data),
   startMigration: (data) => ipcRenderer.send('migration:start', data),

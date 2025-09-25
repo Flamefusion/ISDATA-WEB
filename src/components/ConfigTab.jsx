@@ -89,28 +89,6 @@ const ConfigTab = () => {
     }
   };
 
-  const handleSaveConfig = async () => {
-    const dbConfig = {
-      dbHost: config.dbHost,
-      dbPort: config.dbPort,
-      dbName: config.dbName,
-      dbUser: config.dbUser,
-      dbPassword: config.dbPassword,
-    };
-    try {
-      await window.api.saveConfig(dbConfig);
-      dispatch(showAlert({ 
-        message: 'Configuration saved successfully!', 
-        type: 'success' 
-      }));
-    } catch (error) {
-      dispatch(showAlert({ 
-        message: `Error saving config: ${error.message}`, 
-        type: 'error' 
-      }));
-    }
-  };
-
   const handleTestSheetsConnection = async () => {
     dispatch(setLoading(true));
     
@@ -143,17 +121,19 @@ const ConfigTab = () => {
     }
   };
 
-  const handleTestDbConnection = async () => {
+  const handleConnectAndSaveDb = async () => {
     dispatch(setLoading(true));
-    
+    const dbConfig = {
+      dbHost: config.dbHost,
+      dbPort: config.dbPort,
+      dbName: config.dbName,
+      dbUser: config.dbUser,
+      dbPassword: config.dbPassword,
+    };
+
     try {
-      const result = await window.api.testDbConnection({
-        dbHost: config.dbHost,
-        dbPort: config.dbPort,
-        dbName: config.dbName,
-        dbUser: config.dbUser,
-        dbPassword: config.dbPassword,
-      });
+      // First, try to connect to the database
+      const result = await window.api.connectDb(dbConfig);
       
       if (result.status === 'success') {
         dispatch(setConnectionStatus({ type: 'db', status: 'success' }));
@@ -161,6 +141,21 @@ const ConfigTab = () => {
           message: 'Database connection successful!', 
           type: 'success' 
         }));
+
+        // If connection is successful, save the config
+        try {
+          await window.api.saveConfig(dbConfig);
+          dispatch(showAlert({ 
+            message: 'Configuration saved successfully!', 
+            type: 'success' 
+          }));
+        } catch (error) {
+          dispatch(showAlert({ 
+            message: `Error saving config: ${error.message}`, 
+            type: 'error' 
+          }));
+        }
+
       } else {
         throw new Error(result.message || 'Database connection failed');
       }
@@ -414,22 +409,12 @@ const ConfigTab = () => {
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            onClick={handleSaveConfig} 
-            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
-          >
-            <Save className="w-5 h-5" />
-            Save Configuration
-          </motion.button>
-
-          <motion.button 
-            whileHover={{ scale: 1.02 }} 
-            whileTap={{ scale: 0.98 }} 
-            onClick={handleTestDbConnection} 
+            onClick={handleConnectAndSaveDb} 
             disabled={isLoading} 
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
           >
             {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : <Server className="w-5 h-5" />}
-            Test DB Connection
+            Connect & Save
           </motion.button>
 
           <motion.button 

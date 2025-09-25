@@ -145,6 +145,26 @@ const ReportTab = () => {
     </motion.div>
   );
 
+  if (vendors.length <= 1 && !isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/30 rounded-2xl p-6">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-yellow-500" />
+            <div>
+              <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-400">
+                Database Not Connected
+              </h3>
+              <p className="text-yellow-600 dark:text-yellow-300 mt-1">
+                Please connect to the database in the 'Configuration' tab to load vendor information and generate reports.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="space-y-6">

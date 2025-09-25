@@ -45,17 +45,7 @@ app.whenReady().then(async () => {
   store = new Store();
 
   const backendPath = getBackendPath();
-  const dbConfig = store.get('dbConfig');
-
-  const backendArgs = [];
-  if (dbConfig) {
-    backendArgs.push(`--host=${dbConfig.host}`);
-    backendArgs.push(`--database=${dbConfig.database}`);
-    backendArgs.push(`--user=${dbConfig.user}`);
-    backendArgs.push(`--password=${dbConfig.password}`);
-  }
-
-  backendProcess = spawn(backendPath, backendArgs);
+  backendProcess = spawn(backendPath);
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`Backend stdout: ${data}`);
@@ -92,12 +82,12 @@ ipcMain.handle('sheets:test', async (event, data) => {
   }
 });
 
-ipcMain.handle('db:test', async (event, data) => {
+ipcMain.handle('db:connect', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/db/test', data);
+    const response = await axios.post('http://localhost:5000/api/db/connect', data);
     return response.data;
   } catch (error) {
-    console.error('Error in db:test IPC handler:', error);
+    console.error('Error in db:connect IPC handler:', error);
     throw error;
   }
 });
@@ -159,7 +149,7 @@ ipcMain.handle('rejection:loadData', async (event, data) => {
 
 ipcMain.handle('rejection:loadVendors', async (event, data) => {
   try {
-    const response = await axios.get('http://localhost:5000/api/vendors');
+    const response = await axios.get('http://localhost:5000/api/reports/vendors');
     return response.data;
   } catch (error) {
     console.error('Error in rejection:loadVendors IPC handler:', error);

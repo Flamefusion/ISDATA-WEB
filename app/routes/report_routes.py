@@ -7,6 +7,27 @@ from app.database import get_db_connection, return_db_connection
 
 report_bp = Blueprint('reports', __name__)
 
+@report_bp.route('/reports/vendors', methods=['GET'])
+def get_vendors():
+    """Returns a list of unique vendors from the rings table."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT DISTINCT vendor FROM rings ORDER BY vendor")
+            vendors = [row[0] for row in cursor.fetchall()]
+            return jsonify(['all'] + vendors)
+    except ConnectionError:
+        # This is a special case where the database is not connected yet.
+        # Return an empty list of vendors so the frontend can handle it.
+        return jsonify(['all'])
+    except (psycopg2.Error, Exception) as e:
+        current_app.logger.error(f"Error fetching vendors: {e}")
+        return jsonify({'error': f'Failed to fetch vendors: {str(e)}'}), 500
+    finally:
+        if conn:
+            return_db_connection(conn)
+
 @report_bp.route('/reports/daily', methods=['POST'])
 def get_daily_report():
     """Generates a comprehensive daily production report with correct ring status logic."""

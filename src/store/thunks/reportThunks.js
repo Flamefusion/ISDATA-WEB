@@ -6,7 +6,7 @@ export const loadReport = createAsyncThunk(
   'report/loadReport',
   async ({ selectedDate, selectedVendor }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/daily', {
+      const response = await fetch('http://localhost:5000/api/reports/daily', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor }),
@@ -31,13 +31,13 @@ export const loadVendors = createAsyncThunk(
   'report/loadVendors',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
+      const response = await fetch('http://localhost:5000/api/reports/vendors');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to load vendors');
       }
-      const options = await response.json();
-      return ['all', ...(options.vendors || [])];
+      const vendors = await response.json();
+      return vendors;
     } catch (error) {
       console.error('Failed to load vendors:', error);
       return rejectWithValue(error.message);
@@ -49,7 +49,7 @@ export const exportReport = createAsyncThunk(
   'report/exportReport',
   async ({ selectedDate, selectedVendor, format }, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/reports/export', {
+      const response = await fetch('http://localhost:5000/api/reports/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor, format }),

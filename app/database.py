@@ -30,8 +30,7 @@ def init_db_pool(host, port, dbname, user, password):
 def get_db_connection():
     """Gets a connection from the pool."""
     if not db_pool:
-        if not init_db_pool():
-            raise ConnectionError("Database connection pool is not available.")
+        raise ConnectionError("Database connection pool is not available.")
     return db_pool.getconn()
 
 def return_db_connection(conn):

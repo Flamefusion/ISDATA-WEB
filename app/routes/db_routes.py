@@ -1,8 +1,26 @@
 from flask import Blueprint, request, jsonify
 import psycopg2
-from app.database import check_single_db_connection, get_db_connection, return_db_connection
+from app.database import check_single_db_connection, get_db_connection, return_db_connection, init_db_pool
 
 db_bp = Blueprint('db', __name__)
+
+@db_bp.route('/db/connect', methods=['POST'])
+def connect_db():
+    """Initializes the database connection pool using parameters from the request body."""
+    config = request.json
+    db_host = config.get('dbHost')
+    db_port = config.get('dbPort')
+    db_name = config.get('dbName')
+    db_user = config.get('dbUser')
+    db_password = config.get('dbPassword')
+
+    if not all([db_host, db_port, db_name, db_user, db_password]):
+        return jsonify(status='error', message='All database configuration fields must be provided.'), 400
+
+    if init_db_pool(db_host, db_port, db_name, db_user, db_password):
+        return jsonify(status='success', message='Database connection pool initialized successfully.')
+    else:
+        return jsonify(status='error', message='Failed to initialize database connection pool.'), 500
 
 @db_bp.route('/db/test', methods=['POST'])
 def test_db_connection():

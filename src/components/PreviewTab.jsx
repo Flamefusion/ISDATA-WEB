@@ -10,6 +10,7 @@ import {
   clearData
 } from '../store/slices/dataSlice';
 import { showAlert } from '../store/slices/uiSlice';
+import { loadPreviewData } from '../store/thunks/dataThunks';
 
 // Animation variants
 const fadeInUp = {
@@ -40,51 +41,8 @@ const PreviewTab = () => {
     }
   }, [previewData]);
 
-  const handleLoadPreviewData = async () => {
-    dispatch(setLoading(true));
-    dispatch(setError(null));
-
-    try {
-      const response = await fetch('/api/data', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Format dates for better display
-      const formattedData = data.map(record => ({
-        ...record,
-        date: record.date ? new Date(record.date).toLocaleDateString() : '',
-        created_at: record.created_at ? new Date(record.created_at).toLocaleString() : '',
-        updated_at: record.updated_at ? new Date(record.updated_at).toLocaleString() : '',
-      }));
-
-      dispatch(setPreviewData(formattedData));
-      dispatch(showAlert({ 
-        message: `Loaded ${formattedData.length} records`, 
-        type: 'success' 
-      }));
-    } catch (err) {
-      console.error('Preview data error:', err);
-      dispatch(setError(err.message));
-      dispatch(showAlert({ 
-        message: 'Failed to load preview data', 
-        type: 'error' 
-      }));
-    } finally {
-      dispatch(setLoading(false));
-    }
+  const handleLoadPreviewData = () => {
+    dispatch(loadPreviewData());
   };
 
   const formatCellValue = (value, columnName) => {
