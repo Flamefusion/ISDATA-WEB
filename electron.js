@@ -178,6 +178,47 @@ ipcMain.handle('rejection:exportTrends', async (event, data) => {
   }
 });
 
+ipcMain.handle('search:loadFilterOptions', async (event) => {
+  try {
+    const response = await axios.get('http://localhost:5000/api/search/filters');
+    return response.data;
+  } catch (error) {
+    console.error('Error in search:loadFilterOptions IPC handler:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('search:performSearch', async (event, data) => {
+  try {
+    const response = await axios.post('http://localhost:5000/api/search', data);
+    return response.data;
+  } catch (error) {
+    console.error('Error in search:performSearch IPC handler:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('search:exportSearchResults', async (event, data) => {
+  try {
+    const response = await axios.post('http://localhost:5000/api/search/export', data, {
+      responseType: 'arraybuffer'
+    });
+
+    const fileName = `search_results_${data.dateFrom}_to_${data.dateTo}.csv`; // Adjust filename as needed
+    
+    return {
+      blob: {
+        data: response.data,
+        type: response.headers['content-type'],
+      },
+      fileName: fileName,
+    };
+  } catch (error) {
+    console.error('Error in search:exportSearchResults IPC handler:', error);
+    throw error;
+  }
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();

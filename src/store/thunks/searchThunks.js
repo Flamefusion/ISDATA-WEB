@@ -6,18 +6,8 @@ export const performSearch = createAsyncThunk(
   'search/performSearch',
   async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(searchFilters),
-      });
+      const results = await window.api.performSearch(searchFilters);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Search failed');
-      }
-      
-      const results = await response.json();
       dispatch(showAlert({ 
         message: `Found ${results.length} matching records`, 
         type: 'success' 
@@ -34,13 +24,7 @@ export const loadFilterOptions = createAsyncThunk(
   'search/loadFilterOptions',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/filters');
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to load filter options');
-      }
-      
-      const options = await response.json();
+      const options = await window.api.loadSearchFilterOptions();
       return options;
     } catch (error) {
       console.error('Failed to load filter options:', error);
@@ -53,22 +37,12 @@ export const exportSearchResults = createAsyncThunk(
   'search/exportSearchResults',
   async (searchFilters, { dispatch, rejectWithValue }) => {
     try {
-      const response = await fetch('/api/search/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(searchFilters),
-      });
+      const { blob, fileName } = await window.api.exportSearchResults(searchFilters);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Export failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(new Blob([new Uint8Array(blob.data)], { type: blob.type }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `search_results_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
