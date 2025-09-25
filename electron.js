@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');
 const { spawn } = require('child_process');
+const axios = require('axios');
 
 let pythonProcess = null;
 
@@ -26,6 +27,14 @@ function getPythonExecutable() {
     }
   }
   return pythonPath;
+}
+
+function getScriptPath() {
+  if (process.env.NODE_ENV === 'development') {
+    return path.join(__dirname, 'run.py');
+  } else {
+    return path.join(process.resourcesPath, 'run.py');
+  }
 }
 
 function createWindow() {
@@ -53,8 +62,11 @@ function createWindow() {
 
 app.whenReady().then(() => {
   const pythonExecutable = getPythonExecutable();
-  const scriptPath = path.join(__dirname, 'run.py');
-  pythonProcess = spawn(pythonExecutable, [scriptPath]);
+  const scriptPath = getScriptPath();
+  const cwd = process.env.NODE_ENV === 'development' ? __dirname : process.resourcesPath;
+  const env = { ...process.env, PYTHONPATH: cwd };
+
+  pythonProcess = spawn(pythonExecutable, [scriptPath], { cwd, env });
 
   pythonProcess.stdout.on('data', (data) => {
     console.log(`Python stdout: ${data}`);
@@ -74,18 +86,8 @@ app.whenReady().then(() => {
 // IPC Handlers
 ipcMain.handle('sheets:test', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/test_sheets_connection', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.post('http://localhost:5000/api/test_sheets_connection', data);
+    return response.data;
   } catch (error) {
     console.error('Error in sheets:test IPC handler:', error);
     throw error;
@@ -94,18 +96,8 @@ ipcMain.handle('sheets:test', async (event, data) => {
 
 ipcMain.handle('db:test', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/db/test', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.post('http://localhost:5000/api/db/test', data);
+    return response.data;
   } catch (error) {
     console.error('Error in db:test IPC handler:', error);
     throw error;
@@ -114,18 +106,8 @@ ipcMain.handle('db:test', async (event, data) => {
 
 ipcMain.handle('db:createSchema', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/db/schema', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.post('http://localhost:5000/api/db/schema', data);
+    return response.data;
   } catch (error) {
     console.error('Error in db:createSchema IPC handler:', error);
     throw error;
@@ -134,18 +116,8 @@ ipcMain.handle('db:createSchema', async (event, data) => {
 
 ipcMain.handle('db:clear', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/db/clear', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.delete('http://localhost:5000/api/db/clear', { data });
+    return response.data;
   } catch (error) {
     console.error('Error in db:clear IPC handler:', error);
     throw error;
@@ -154,38 +126,23 @@ ipcMain.handle('db:clear', async (event, data) => {
 
 ipcMain.on('migration:start', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/migrate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
+    const response = await axios.post('http://localhost:5000/api/migrate', data, {
+      responseType: 'stream'
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      event.sender.send('migration:log', { type: 'error', message: errorData.error || `Migration start failed with status: ${response.status}` });
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        event.sender.send('migration:log', { type: 'complete', message: 'Migration stream complete.' });
-        break;
-      }
-
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
-
+    response.data.on('data', (chunk) => {
+      const message = chunk.toString();
+      const lines = message.split('\n').filter(line => line.startsWith('data: '));
       for (const line of lines) {
         const message = line.replace('data: ', '');
         event.sender.send('migration:log', { type: 'log', message: message });
       }
-    }
+    });
+
+    response.data.on('end', () => {
+      event.sender.send('migration:log', { type: 'complete', message: 'Migration stream complete.' });
+    });
+
   } catch (error) {
     console.error('Error in migration:start IPC handler:', error);
     event.sender.send('migration:log', { type: 'error', message: `Migration failed: ${error.message}` });
@@ -194,18 +151,8 @@ ipcMain.on('migration:start', async (event, data) => {
 
 ipcMain.handle('rejection:loadData', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/rejection_trends', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.post('http://localhost:5000/api/rejection_trends', data);
+    return response.data;
   } catch (error) {
     console.error('Error in rejection:loadData IPC handler:', error);
     throw error;
@@ -214,17 +161,8 @@ ipcMain.handle('rejection:loadData', async (event, data) => {
 
 ipcMain.handle('rejection:loadVendors', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/vendors', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    const result = await response.json();
-    if (!response.ok) {
-      throw new Error(result.message || 'Backend error');
-    }
-    return result;
+    const response = await axios.get('http://localhost:5000/api/vendors');
+    return response.data;
   } catch (error) {
     console.error('Error in rejection:loadVendors IPC handler:', error);
     throw error;
@@ -233,27 +171,16 @@ ipcMain.handle('rejection:loadVendors', async (event, data) => {
 
 ipcMain.handle('rejection:exportTrends', async (event, data) => {
   try {
-    const response = await fetch('http://localhost:5000/api/reports/rejection-trends/export', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    const response = await axios.post('http://localhost:5000/api/reports/rejection-trends/export', data, {
+      responseType: 'arraybuffer'
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Export failed');
-    }
-
-    const blob = await response.blob();
     const fileName = `rejection_trends_${data.dateFrom}_to_${data.dateTo}_${data.selectedVendor}.${data.format === 'excel' ? 'xlsx' : 'csv'}`;
-    const fileType = blob.type;
-    const arrayBuffer = await blob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
+    
     return {
       blob: {
-        data: buffer,
-        type: fileType,
+        data: response.data,
+        type: response.headers['content-type'],
       },
       fileName: fileName,
     };
