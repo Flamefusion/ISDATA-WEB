@@ -19,6 +19,7 @@
     "@reduxjs/toolkit": "^2.9.0",
     "autoprefixer": "^10.4.19",
     "axios": "^1.12.2",
+    "electron-store": "^10.1.0",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.542.0",
     "postcss": "^8.4.38",

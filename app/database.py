@@ -5,7 +5,7 @@ from psycopg2 import pool
 # Global database connection pool
 db_pool = None
 
-def init_db_pool():
+def init_db_pool(host, port, dbname, user, password):
     """Initializes the database connection pool."""
     global db_pool
     if db_pool:
@@ -14,11 +14,11 @@ def init_db_pool():
         db_pool = pool.ThreadedConnectionPool(
             minconn=1,
             maxconn=10,
-            host=os.getenv('DB_HOST'),
-            port=os.getenv('DB_PORT'),
-            dbname=os.getenv('DB_NAME'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD')
+            host=host,
+            port=port,
+            dbname=dbname,
+            user=user,
+            password=password
         )
         print("Database connection pool initialized successfully.")
         return True

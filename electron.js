@@ -4,6 +4,7 @@ const url = require('url');
 const { spawn } = require('child_process');
 const axios = require('axios');
 
+let store;
 let backendProcess = null;
 
 function getBackendPath() {
@@ -39,10 +40,22 @@ function createWindow() {
   // mainWindow.webContents.openDevTools();
 }
 
-app.whenReady().then(() => {
-  const backendPath = getBackendPath();
+app.whenReady().then(async () => {
+  const Store = (await import('electron-store')).default;
+  store = new Store();
 
-  backendProcess = spawn(backendPath);
+  const backendPath = getBackendPath();
+  const dbConfig = store.get('dbConfig');
+
+  const backendArgs = [];
+  if (dbConfig) {
+    backendArgs.push(`--host=${dbConfig.host}`);
+    backendArgs.push(`--database=${dbConfig.database}`);
+    backendArgs.push(`--user=${dbConfig.user}`);
+    backendArgs.push(`--password=${dbConfig.password}`);
+  }
+
+  backendProcess = spawn(backendPath, backendArgs);
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`Backend stdout: ${data}`);
@@ -57,6 +70,15 @@ app.whenReady().then(() => {
   });
 
   createWindow();
+});
+
+// IPC Handlers for configuration
+ipcMain.handle('config:save', (event, config) => {
+  store.set('dbConfig', config);
+});
+
+ipcMain.handle('config:load', (event) => {
+  return store.get('dbConfig');
 });
 
 // IPC Handlers

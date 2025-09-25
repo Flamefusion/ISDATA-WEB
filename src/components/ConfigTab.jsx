@@ -1,5 +1,5 @@
 // src/components/ConfigTab.jsx - Updated with Real API Integration
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Cloud, 
@@ -9,7 +9,8 @@ import {
   Folder, 
   Loader, 
   Server, 
-  RefreshCw 
+  RefreshCw,
+  Save
 } from 'lucide-react';
 
 // Redux
@@ -45,6 +46,16 @@ const ConfigTab = () => {
   const connectionStatus = useSelector((state) => state.config.connectionStatus);
   
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const loadConfig = async () => {
+      const savedConfig = await window.api.loadConfig();
+      if (savedConfig) {
+        dispatch(updateConfig(savedConfig));
+      }
+    };
+    loadConfig();
+  }, [dispatch]);
   
   const handleBrowseClick = () => fileInputRef.current.click();
   
@@ -75,6 +86,28 @@ const ConfigTab = () => {
         }
       };
       reader.readAsText(file);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    const dbConfig = {
+      dbHost: config.dbHost,
+      dbPort: config.dbPort,
+      dbName: config.dbName,
+      dbUser: config.dbUser,
+      dbPassword: config.dbPassword,
+    };
+    try {
+      await window.api.saveConfig(dbConfig);
+      dispatch(showAlert({ 
+        message: 'Configuration saved successfully!', 
+        type: 'success' 
+      }));
+    } catch (error) {
+      dispatch(showAlert({ 
+        message: `Error saving config: ${error.message}`, 
+        type: 'error' 
+      }));
     }
   };
 
@@ -378,6 +411,16 @@ const ConfigTab = () => {
         </div>
 
         <div className="flex flex-wrap gap-4 mt-6">
+          <motion.button 
+            whileHover={{ scale: 1.02 }} 
+            whileTap={{ scale: 0.98 }} 
+            onClick={handleSaveConfig} 
+            className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors duration-200 flex items-center gap-2"
+          >
+            <Save className="w-5 h-5" />
+            Save Configuration
+          </motion.button>
+
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
