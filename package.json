@@ -53,16 +53,8 @@
     ],
     "extraResources": [
       {
-        "from": "python-portable",
-        "to": "python-portable"
-      },
-      {
-        "from": "run.py",
-        "to": "run.py"
-      },
-      {
-        "from": "app",
-        "to": "app"
+        "from": "backend/backend.exe",
+        "to": "backend.exe"
       }
     ],
     "win": {

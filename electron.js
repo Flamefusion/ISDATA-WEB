@@ -4,36 +4,15 @@ const url = require('url');
 const { spawn } = require('child_process');
 const axios = require('axios');
 
-let pythonProcess = null;
+let backendProcess = null;
 
-function getPythonExecutable() {
-  let pythonPath;
+function getBackendPath() {
   if (process.env.NODE_ENV === 'development') {
-    // In development, __dirname is the project root
-    if (process.platform === 'win32') {
-      pythonPath = path.join(__dirname, 'python-portable', 'python.exe');
-    }
-    else {
-      pythonPath = path.join(__dirname, 'python-portable', 'python');
-    }
-  }
-  else {
-    // In production, extraResources are copied to the resources directory
-    if (process.platform === 'win32') {
-      pythonPath = path.join(process.resourcesPath, 'python-portable', 'python.exe');
-    }
-    else {
-      pythonPath = path.join(process.resourcesPath, 'python-portable', 'python');
-    }
-  }
-  return pythonPath;
-}
-
-function getScriptPath() {
-  if (process.env.NODE_ENV === 'development') {
-    return path.join(__dirname, 'run.py');
+    // In development, expect backend.exe in a 'backend' subfolder of the project root
+    return path.join(__dirname, 'backend', 'backend.exe');
   } else {
-    return path.join(process.resourcesPath, 'run.py');
+    // In production, electron-builder moves extraResources to the 'resources' directory
+    return path.join(process.resourcesPath, 'backend.exe');
   }
 }
 
@@ -61,23 +40,20 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  const pythonExecutable = getPythonExecutable();
-  const scriptPath = getScriptPath();
-  const cwd = process.env.NODE_ENV === 'development' ? __dirname : process.resourcesPath;
-  const env = { ...process.env, PYTHONPATH: cwd };
+  const backendPath = getBackendPath();
 
-  pythonProcess = spawn(pythonExecutable, [scriptPath], { cwd, env });
+  backendProcess = spawn(backendPath);
 
-  pythonProcess.stdout.on('data', (data) => {
-    console.log(`Python stdout: ${data}`);
+  backendProcess.stdout.on('data', (data) => {
+    console.log(`Backend stdout: ${data}`);
   });
 
-  pythonProcess.stderr.on('data', (data) => {
-    console.error(`Python stderr: ${data}`);
+  backendProcess.stderr.on('data', (data) => {
+    console.error(`Backend stderr: ${data}`);
   });
 
-  pythonProcess.on('close', (code) => {
-    console.log(`Python process exited with code ${code}`);
+  backendProcess.on('close', (code) => {
+    console.log(`Backend process exited with code ${code}`);
   });
 
   createWindow();
@@ -197,8 +173,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  if (pythonProcess) {
-    pythonProcess.kill();
+  if (backendProcess) {
+    backendProcess.kill();
   }
 });
 
