@@ -35,14 +35,21 @@ for folder in CLEAN_FOLDERS:
     else:
         fancy_print(f"Folder not found (skipped): {folder}", Fore.CYAN, "ℹ️")
 
-# 1. Build backend.exe using PyInstaller
+# 1. dependencies installation
+run_command(
+    "pip install -r requirements.txt",
+    "Requirements installed successfully.",
+    "Error: Failed to install requirements."
+)
+
+# 2. Build backend.exe using PyInstaller
 run_command(
     "pyinstaller --onefile run.py --name backend --paths .",
     "backend.exe built successfully.",
     "Error: PyInstaller failed to build backend.exe."
 )
 
-# 2. Create backend folder if it doesn't exist and copy backend.exe
+# 3. Create backend folder if it doesn't exist and copy backend.exe
 fancy_print("Creating 'backend' directory and copying backend.exe...", Fore.YELLOW, "📁")
 os.makedirs("backend", exist_ok=True)
 try:
@@ -52,7 +59,18 @@ except Exception as e:
     fancy_print(f"Error: Failed to copy backend.exe. {e}", Fore.RED, "❌")
     sys.exit(1)
 
-# 3. Run npm run build for the Electron application
+# 4. node module installation 
+run_command(
+    "npm install",
+    "Node modules installed successfully.",
+    "Error: Failed to install Node modules."
+)
+
+# 5. for some reaosn electron builder keep slooking or fsevents for some unknown reaosn , to by pass that this is  a simple hack
+fancy_print("Creating 'node_modules/fsevents' directory...", Fore.YELLOW, "📁")
+os.makedirs("node_modules/fsevents", exist_ok=True)
+
+# 6. Run npm run build for the Electron application
 run_command(
     "npm run build",
     "Electron application built successfully.\n🎉 Build process completed! 🎉",
