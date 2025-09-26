@@ -55,17 +55,20 @@ def create_schema_endpoint():
 
             log.append("Creating the 'rings' table and base indexes...")
             create_table_sql = """
-            CREATE TABLE rings (
-                id SERIAL PRIMARY KEY, date DATE, mo_number VARCHAR(50), vendor VARCHAR(50),
-                serial_number VARCHAR(100) UNIQUE, ring_size VARCHAR(100), sku VARCHAR(50),
-                vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT,
-                reason_tsvector TSVECTOR, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX idx_serial_number ON rings(serial_number);
-            CREATE INDEX idx_vendor ON rings(vendor);
-            CREATE INDEX idx_date_desc ON rings(date DESC);
-            """
+                        CREATE TABLE rings ( 
+                            id SERIAL PRIMARY KEY, date DATE, mo_number VARCHAR(50), vendor VARCHAR(50),
+                            serial_number VARCHAR(100) UNIQUE, ring_size VARCHAR(100), sku VARCHAR(50),
+                            pcb VARCHAR(50), qc_code VARCHAR(50), qc_person VARCHAR(100),
+                            vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT,
+                            reason_tsvector TSVECTOR, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                        CREATE INDEX idx_serial_number ON rings(serial_number);
+                        CREATE INDEX idx_vendor ON rings(vendor);
+                        CREATE INDEX idx_date_desc ON rings(date DESC);
+                        CREATE INDEX idx_pcb ON rings(pcb);
+                        CREATE INDEX idx_qc_code ON rings(qc_code);
+                        CREATE INDEX idx_qc_person ON rings(qc_person);            """
             cursor.execute(create_table_sql)
 
             log.append("Adding optimized composite and full-text search indexes...")

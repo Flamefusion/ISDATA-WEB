@@ -119,6 +119,24 @@ const SearchTab = () => {
             selected={searchFilters.rejectionReason} 
             onChange={(selected) => dispatch(updateSearchFilters({ rejectionReason: selected }))} 
           />
+          <MultiSelectMenu 
+            label="PCB"
+            options={filterOptions.pcbs}
+            selected={searchFilters.pcb}
+            onChange={(selected) => dispatch(updateSearchFilters({ pcb: selected }))}
+          />
+          <MultiSelectMenu 
+            label="QC Code"
+            options={filterOptions.qccodes}
+            selected={searchFilters.qccode}
+            onChange={(selected) => dispatch(updateSearchFilters({ qccode: selected }))}
+          />
+          <MultiSelectMenu 
+            label="QC Person"
+            options={filterOptions.qcpersons}
+            selected={searchFilters.qcperson}
+            onChange={(selected) => dispatch(updateSearchFilters({ qcperson: selected }))}
+          />
         </div>
 
         <div className="flex gap-4 mt-6">
@@ -184,7 +202,7 @@ const SearchTab = () => {
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                 <tr>
-                  {['serial_number', 'mo_number', 'vendor', 'date', 'vqc_status', 'ft_status'].map((header) => (
+                  {['serial_number', 'mo_number', 'vendor', 'date', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'ft_status'].map((header) => (
                     <th 
                       key={header} 
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
@@ -214,6 +232,15 @@ const SearchTab = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
                       {row.date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                      {row.pcb}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                      {row.qc_code}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                      {row.qc_person}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <motion.span 

@@ -91,14 +91,14 @@ def migrate():
                 cursor.execute("""
                     CREATE TEMP TABLE rings_temp (
                         date DATE, mo_number VARCHAR(50), vendor VARCHAR(50), serial_number VARCHAR(100) UNIQUE,
-                        ring_size VARCHAR(100), sku VARCHAR(50), vqc_status VARCHAR(100),
-                        vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT
+                        ring_size VARCHAR(100), sku VARCHAR(50), pcb VARCHAR(50), qc_code VARCHAR(50), qc_person VARCHAR(100),
+                        vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT
                     ) ON COMMIT DROP;
                 """)
 
                 yield from log_callback("Preparing data for bulk COPY...")
                 string_buffer = io.StringIO()
-                cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
+                cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
                 null_identifier = '\\N'
 
                 for record in merged_data:
@@ -134,7 +134,8 @@ def migrate():
                 update_sql = """
                 UPDATE rings r SET
                     date = t.date, mo_number = t.mo_number, vendor = t.vendor, ring_size = t.ring_size,
-                    sku = t.sku, vqc_status = t.vqc_status, vqc_reason = t.vqc_reason,
+                    sku = t.sku, pcb = t.pcb, qc_code = t.qc_code, qc_person = t.qc_person, 
+                    vqc_status = t.vqc_status, vqc_reason = t.vqc_reason,
                     ft_status = t.ft_status, ft_reason = t.ft_reason, updated_at = CURRENT_TIMESTAMP
                 FROM rings_temp t
                 WHERE r.serial_number = t.serial_number;
@@ -144,8 +145,8 @@ def migrate():
 
                 yield from log_callback("Inserting new records...")
                 insert_sql = """
-                INSERT INTO rings (date, mo_number, vendor, serial_number, ring_size, sku, vqc_status, vqc_reason, ft_status, ft_reason)
-                SELECT t.date, t.mo_number, t.vendor, t.serial_number, t.ring_size, t.sku, t.vqc_status, t.vqc_reason, t.ft_status, t.ft_reason
+                INSERT INTO rings (date, mo_number, vendor, serial_number, ring_size, sku, pcb, qc_code, qc_person, vqc_status, vqc_reason, ft_status, ft_reason)
+                SELECT t.date, t.mo_number, t.vendor, t.serial_number, t.ring_size, t.sku, t.pcb, t.qc_code, t.qc_person, t.vqc_status, t.vqc_reason, t.ft_status, t.ft_reason
                 FROM rings_temp t
                 LEFT JOIN rings r ON t.serial_number = r.serial_number
                 WHERE r.serial_number IS NULL;

@@ -121,15 +121,18 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
         rename_map = {
             find_column(df_vqc, ['uid', 'serial']): 'serial_number',
             find_column(df_vqc, ['status', 'result']): 'vqc_status',
-            find_column(df_vqc, ['reason', 'comments']): 'vqc_reason'
+            find_column(df_vqc, ['reason', 'comments']): 'vqc_reason',
+            find_column(df_vqc, ['PCB']): 'pcb',
+            find_column(df_vqc, ['QC CODE']): 'qc_code',
+            find_column(df_vqc, ['QC PERSON']): 'qc_person'
         }
         df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
         if 'serial_number' in df_vqc.columns:
             df_vqc.dropna(subset=['serial_number'], inplace=True)
             df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip()
-            df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason'] if col in df_vqc.columns]]
+            df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'] if col in df_vqc.columns]]
     else:
-        df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason'])
+        df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'])
     
     df_ft = pd.DataFrame(ft_data)
     if not df_ft.empty:

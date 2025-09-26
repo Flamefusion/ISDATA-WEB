@@ -26,6 +26,7 @@ const PreviewTab = () => {
   
   const desiredColumns = [
     'date', 'vendor', 'mo_number', 'serial_number', 'sku', 'ring_size',
+    'pcb', 'qc_code', 'qc_person',
     'vqc_status', 'ft_status', 'vqc_reason', 'ft_reason', 'created_at', 'updated_at',
   ];
   

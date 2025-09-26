@@ -13,7 +13,7 @@ def search():
     filters = request.json
     current_app.logger.info(f"Received search filters: {filters}")
     
-    query = "SELECT date, vendor, mo_number, serial_number, vqc_status, ft_status, vqc_reason, ft_reason FROM rings WHERE 1=1"
+    query = "SELECT date, vendor, mo_number, serial_number, pcb, qc_code, qc_person, vqc_status, ft_status, vqc_reason, ft_reason FROM rings WHERE 1=1"
     params = []
 
     try:
@@ -65,6 +65,18 @@ def search():
         if filters.get('vendor') and len(filters['vendor']) > 0:
             query += " AND vendor = ANY(%s)"
             params.append(filters['vendor'])
+
+        if filters.get('pcb') and len(filters['pcb']) > 0:
+            query += " AND pcb = ANY(%s)"
+            params.append(filters['pcb'])
+
+        if filters.get('qccode') and len(filters['qccode']) > 0:
+            query += " AND qc_code = ANY(%s)"
+            params.append(filters['qccode'])
+
+        if filters.get('qcperson') and len(filters['qcperson']) > 0:
+            query += " AND qc_person = ANY(%s)"
+            params.append(filters['qcperson'])
             
         if filters.get('vqcStatus') and len(filters['vqcStatus']) > 0:
             query += " AND vqc_status = ANY(%s)"
@@ -129,6 +141,15 @@ def get_search_filters():
             """
             cursor.execute(reason_query)
             options['reasons'] = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("SELECT DISTINCT pcb FROM rings WHERE pcb IS NOT NULL AND pcb != '' ORDER BY pcb;")
+            options['pcbs'] = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("SELECT DISTINCT qc_code FROM rings WHERE qc_code IS NOT NULL AND qc_code != '' ORDER BY qc_code;")
+            options['qccodes'] = [row[0] for row in cursor.fetchall()]
+
+            cursor.execute("SELECT DISTINCT qc_person FROM rings WHERE qc_person IS NOT NULL AND qc_person != '' ORDER BY qc_person;")
+            options['qcpersons'] = [row[0] for row in cursor.fetchall()]
             
         return jsonify(options)
     except psycopg2.Error as db_err:
@@ -144,7 +165,7 @@ def export_search_results():
     filters = request.json
     conn = None
     try:
-        base_query = "SELECT date, vendor, mo_number, serial_number, vqc_status, ft_status, vqc_reason, ft_reason FROM rings"
+        base_query = "SELECT date, vendor, mo_number, serial_number, pcb, qc_code, qc_person, vqc_status, ft_status, vqc_reason, ft_reason FROM rings"
         where_clauses, params = [], []
 
         if filters.get('serialNumbers'):
@@ -170,6 +191,18 @@ def export_search_results():
         if filters.get('vendor'):
             where_clauses.append("vendor = ANY(%s)")
             params.append(filters['vendor'])
+
+        if filters.get('pcb') and len(filters['pcb']) > 0:
+            where_clauses.append("pcb = ANY(%s)")
+            params.append(filters['pcb'])
+
+        if filters.get('qccode') and len(filters['qccode']) > 0:
+            where_clauses.append("qc_code = ANY(%s)")
+            params.append(filters['qccode'])
+
+        if filters.get('qcperson') and len(filters['qcperson']) > 0:
+            where_clauses.append("qc_person = ANY(%s)")
+            params.append(filters['qcperson'])
             
         if filters.get('vqcStatus'):
             where_clauses.append("vqc_status = ANY(%s)")
