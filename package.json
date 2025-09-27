@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently -k \"npm:dev:vite\" \"npm:dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev:electron": "cross-env ELECTRON_START_URL=http://localhost:5173 wait-on http://localhost:5173 && .\\node_modules\\.bin\\electron .",
     "build": "npm run build:react && electron-builder --win",
     "build:react": "vite build",
     "lint": "eslint .",
@@ -36,6 +36,7 @@
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
     "electron": "^38.1.2",
     "electron-builder": "^26.0.12",
     "eslint": "^8.57.0",

@@ -18,6 +18,7 @@ function getBackendPath() {
 }
 
 function createWindow() {
+  console.log('Creating main window...');
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
@@ -34,17 +35,24 @@ function createWindow() {
     slashes: true,
   });
 
+  console.log(`Loading URL: ${startUrl}`);
   mainWindow.loadURL(startUrl);
+
+  mainWindow.on('closed', () => {
+    console.log('Main window closed.');
+  });
 
   // Open the DevTools.
   // mainWindow.webContents.openDevTools();
 }
 
 app.whenReady().then(async () => {
+  console.log('App is ready.');
   const Store = (await import('electron-store')).default;
   store = new Store();
 
   const backendPath = getBackendPath();
+  console.log(`Spawning backend process from: ${backendPath}`);
   backendProcess = spawn(backendPath);
 
   backendProcess.stdout.on('data', (data) => {

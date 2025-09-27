@@ -72,7 +72,7 @@ os.makedirs("node_modules/fsevents", exist_ok=True)
 
 # 6. Run npm run build for the Electron application
 run_command(
-    "npm run build",
-    "Electron application built successfully.\n🎉 Build process completed! 🎉",
-    "Error: npm run build failed for the Electron application."
+    "npm run dev",
+    "Electron localhost ran successfully.\n🎉 Build process completed! 🎉",
+    "Error: npm run dev failed for the Electron application."
 )
