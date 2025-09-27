@@ -26,11 +26,13 @@ def create_app():
     from app.routes.data_routes import data_bp
     from app.routes.search_routes import search_bp
     from app.routes.report_routes import report_bp
+    from app.routes.home_routes import home_bp
     
     app.register_blueprint(db_bp, url_prefix='/api')
     app.register_blueprint(data_bp, url_prefix='/api')
     app.register_blueprint(search_bp, url_prefix='/api')
     app.register_blueprint(report_bp, url_prefix='/api')
+    app.register_blueprint(home_bp, url_prefix='/api')
     
     for rule in app.url_map.iter_rules():
         print(rule)

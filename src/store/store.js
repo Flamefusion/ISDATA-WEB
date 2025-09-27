@@ -7,6 +7,7 @@ import searchReducer from './slices/searchSlice.js';
 import migrationReducer from './slices/migrationSlice.js';
 import rejectionTrendsReducer from './slices/rejectionTrendsSlice.js';
 import uiReducer from './slices/uiSlice.js';
+import homeReducer from './slices/homeSlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -17,6 +18,7 @@ export const store = configureStore({
     migration: migrationReducer,
     rejectionTrends: rejectionTrendsReducer,
     ui: uiReducer,
+    home: homeReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

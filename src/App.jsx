@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
+import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home } from 'lucide-react';
 import { Routes, Route, useLocation, Link } from 'react-router-dom';
 
 import { store } from './store/store';
@@ -14,6 +14,7 @@ import {
 } from './store/slices/uiSlice';
 
 // Components
+import HomeTab from './components/HomeTab';
 import ConfigTab from './components/ConfigTab';
 import MigrationTab from './components/MigrationTab';
 import PreviewTab from './components/PreviewTab';
@@ -34,7 +35,8 @@ const AppContent = () => {
 
   // Tab configuration
   const tabs = [
-    { id: 'config', path: '/', label: 'Configuration', icon: Database, component: ConfigTab },
+    { id: 'home', path: '/', label: 'Home', icon: Home, component: HomeTab },
+    { id: 'config', path: '/config', label: 'Configuration', icon: Database, component: ConfigTab },
     { id: 'migration', path: '/migration', label: 'Migration', icon: RefreshCw, component: MigrationTab },
     { id: 'preview', path: '/preview', label: 'Preview', icon: BarChart3, component: PreviewTab },
     { id: 'report', path: '/report', label: 'Report', icon: FileText, component: ReportTab },
@@ -43,11 +45,7 @@ const AppContent = () => {
   ];
 
   return (
-    <div className={`min-h-screen transition-all duration-300 ${
-      isDarkMode 
-        ? 'bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white' 
-        : 'bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 text-gray-900'
-    }`}>
+    <div className={`min-h-screen transition-all duration-300 ${isDarkMode ? 'bg-background-dark text-text-dark' : 'bg-background-light text-text-light'}`}>
       {/* Alert System */}
       <AnimatePresence>
         {customAlert.show && (
@@ -68,11 +66,11 @@ const AppContent = () => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
+              <div className="p-3 bg-gradient-to-br from-accent-primary to-accent-secondary rounded-2xl shadow-lg">
                 <Database className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent">
                   Rings Dashboard
                 </h1>
                 <p className="text-gray-600 dark:text-gray-300">
@@ -113,7 +111,7 @@ const AppContent = () => {
                     whileTap={{ scale: 0.98 }}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
                       isActive
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                        ? 'bg-gradient-to-r from-accent-primary to-accent-secondary text-white shadow-lg'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-white/20 dark:hover:bg-gray-800/50'
                     }`}
                   >
