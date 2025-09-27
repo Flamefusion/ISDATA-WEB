@@ -1,5 +1,5 @@
 // src/App.jsx - COMPLETE VERSION with all tabs
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home } from 'lucide-react';
@@ -23,15 +23,26 @@ import SearchTab from './components/SearchTab';
 import RejectionTrendsTab from './components/RejectionTrendsTab';
 import SettingsPanel from './components/SettingsPanel';
 import CustomAlert from './components/CustomAlert';
+import Login from './components/Login';
 
 const AppContent = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { isDarkMode, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
+  const { isLoggedIn } = useSelector((state) => state.auth);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setShowLogin(true);
+    } else {
+      setShowLogin(false);
+    }
+  }, [isLoggedIn]);
 
   // Tab configuration
   const tabs = [
@@ -55,6 +66,11 @@ const AppContent = () => {
             onClose={() => dispatch(hideAlert())} 
           />
         )}
+      </AnimatePresence>
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLogin && <Login onClose={() => setShowLogin(false)} />}
       </AnimatePresence>
 
       {/* Header */}
@@ -164,6 +180,7 @@ const AppContent = () => {
         onClose={() => dispatch(closeSettingsPanel())}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => dispatch(toggleDarkMode())}
+        onLoginClick={() => setShowLogin(true)}
       />
     </div>
   );
