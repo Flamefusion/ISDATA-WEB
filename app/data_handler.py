@@ -103,7 +103,7 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
         
         if 'serial_number' in vendor_df.columns:
             vendor_df.dropna(subset=['serial_number'], inplace=True)
-            vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip()
+            vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip().str.upper()
             all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
         else:
             logs.append(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
@@ -129,7 +129,9 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
         df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
         if 'serial_number' in df_vqc.columns:
             df_vqc.dropna(subset=['serial_number'], inplace=True)
-            df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip()
+            df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip().str.upper()
+            if 'vqc_reason' in df_vqc.columns:
+                df_vqc['vqc_reason'] = df_vqc['vqc_reason'].astype(str).str.strip().str.upper()
             df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'] if col in df_vqc.columns]]
     else:
         df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'])
@@ -144,7 +146,9 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
         df_ft.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
         if 'serial_number' in df_ft.columns:
             df_ft.dropna(subset=['serial_number'], inplace=True)
-            df_ft['serial_number'] = df_ft['serial_number'].astype(str).str.strip()
+            df_ft['serial_number'] = df_ft['serial_number'].astype(str).str.strip().str.upper()
+            if 'ft_reason' in df_ft.columns:
+                df_ft['ft_reason'] = df_ft['ft_reason'].astype(str).str.strip().str.upper()
             df_ft = df_ft[[col for col in ['serial_number', 'ft_status', 'ft_reason'] if col in df_ft.columns]]
     else:
         df_ft = pd.DataFrame(columns=['serial_number', 'ft_status', 'ft_reason'])
