@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, request
 from app.database import get_db_connection, return_db_connection
 from datetime import datetime, timedelta
@@ -25,9 +24,9 @@ def get_home_summary():
         # Ring Lifecycle
         cursor.execute("""SELECT 
             COUNT(CASE WHEN vqc_status IS NOT NULL THEN 1 END) as vqc_received,
-            COUNT(CASE WHEN vqc_status IN ('accepted', 'wabi sabi', 'scrap', 'rt conversion') THEN 1 END) as vqc_closed,
+            COUNT(CASE WHEN vqc_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END) as vqc_closed,
             COUNT(CASE WHEN ft_status IS NOT NULL THEN 1 END) as ft_received,
-            COUNT(CASE WHEN ft_status IN ('passed', 'failed') THEN 1 END) as ft_closed
+            COUNT(CASE WHEN ft_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END) as ft_closed
             FROM rings WHERE date BETWEEN %s AND %s;""", (start_date, end_date))
         lifecycle_data = cursor.fetchone()
         vqc_received, vqc_closed, ft_received, ft_closed = lifecycle_data
@@ -56,6 +55,15 @@ def get_home_summary():
         cursor.execute("""SELECT qc_person, COUNT(*) as total, COUNT(CASE WHEN vqc_status = 'accepted' THEN 1 END) as accepted FROM rings WHERE date BETWEEN %s AND %s AND qc_person IS NOT NULL AND qc_person != '' GROUP BY qc_person;""", (start_date, end_date))
         qc_person_yield_data = cursor.fetchall()
 
+        # MO Summary
+        cursor.execute("""SELECT mo_number, 
+            COUNT(CASE WHEN vqc_status = 'ACCEPTED' THEN 1 END) as accepted,
+            COUNT(CASE WHEN vqc_status = 'WABI SABI' THEN 1 END) as wabi_sabi,
+            COUNT(CASE WHEN vqc_status = 'SCRAP' THEN 1 END) as scrap,
+            COUNT(CASE WHEN vqc_status = 'RT CONVERSION' THEN 1 END) as rt_conversion
+            FROM rings WHERE date BETWEEN %s AND %s GROUP BY mo_number;""", (start_date, end_date))
+        mo_summary_data = cursor.fetchall()
+
         cursor.close()
 
         # Format data
@@ -70,6 +78,7 @@ def get_home_summary():
         formatted_ring_sku = [{'name': row[0], 'value': row[1]} for row in ring_sku_data]
         formatted_ring_pcb = [{'name': row[0], 'value': row[1]} for row in ring_pcb_data]
         formatted_qc_person_yield = [{'name': row[0], 'yield': (row[2] / row[1]) * 100 if row[1] > 0 else 0, 'total': row[1], 'accepted': row[2]} for row in qc_person_yield_data]
+        formatted_mo_summary = [{'name': row[0], 'accepted': row[1], 'wabi_sabi': row[2], 'scrap': row[3], 'rt_conversion': row[4]} for row in mo_summary_data]
 
         return jsonify({
             'ringLifecycleData': formatted_ring_lifecycle,
@@ -79,6 +88,7 @@ def get_home_summary():
             'ringSkuData': formatted_ring_sku,
             'ringPcbData': formatted_ring_pcb,
             'qcPersonYieldData': formatted_qc_person_yield,
+            'moSummaryData': formatted_mo_summary,
         })
 
     except Exception as e:
