@@ -4,7 +4,7 @@ import psycopg2
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-from app.database import get_db_connection, return_db_connection
+from app.database import get_db_connection
 from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection
 
 data_bp = Blueprint('data', __name__)
@@ -29,9 +29,6 @@ def get_data():
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
         return jsonify(error=str(e)), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @data_bp.route('/migrate', methods=['POST'])
 def migrate():
@@ -161,9 +158,6 @@ def migrate():
             if conn:
                 conn.rollback()
             yield from log_callback(f"ERROR: High-speed migration failed: {e}")
-        finally:
-            if conn:
-                return_db_connection(conn)
 
     return Response(generate(), mimetype='text/event-stream')
 

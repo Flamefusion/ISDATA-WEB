@@ -44,7 +44,7 @@ run_command(
 
 # 2. Build backend.exe using PyInstaller
 run_command(
-    "pyinstaller --onefile run.py --name backend --paths . --hidden-import=mx.DateTime",
+    "pyinstaller --onefile run.py --name backend --paths . --add-data \"app;app\" --hidden-import=mx.DateTime",
     "backend.exe built successfully.",
     "Error: PyInstaller failed to build backend.exe."
 )

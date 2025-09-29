@@ -3,7 +3,7 @@ import csv
 import io
 import psycopg2
 import pandas as pd
-from app.database import get_db_connection, return_db_connection
+from app.database import get_db_connection
 
 search_bp = Blueprint('search', __name__)
 
@@ -103,7 +103,6 @@ def search():
         data = [dict(zip(colnames, row)) for row in cur.fetchall()]
         
         cur.close()
-        return_db_connection(conn)
         
         current_app.logger.info(f"Search completed successfully, returning {len(data)} records")
         return jsonify(data)
@@ -155,9 +154,6 @@ def get_search_filters():
     except psycopg2.Error as db_err:
         current_app.logger.error(f"Database error loading filters: {db_err}")
         return jsonify(status="error", message=f"Database error loading filters: {db_err}"), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @search_bp.route('/search/export', methods=['POST'])
 def export_search_results():
@@ -247,6 +243,3 @@ def export_search_results():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Export failed: {e}")
         return jsonify(status="error", message=f"Export failed: {e}"), 500
-    finally:
-        if conn:
-            return_db_connection(conn)

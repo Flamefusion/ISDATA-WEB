@@ -3,6 +3,11 @@ const path = require('path');
 const url = require('url');
 const { spawn } = require('child_process');
 const axios = require('axios');
+const { wrapper } = require('axios-cookiejar-support');
+const { CookieJar } = require('tough-cookie');
+
+const jar = new CookieJar();
+const client = wrapper(axios.create({ jar }));
 
 let store;
 let backendProcess = null;
@@ -74,7 +79,7 @@ ipcMain.handle('config:load', (event) => {
 // IPC Handlers
 ipcMain.handle('sheets:test', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/test_sheets_connection', data);
+    const response = await client.post('http://localhost:5000/api/test_sheets_connection', data);
     return response.data;
   } catch (error) {
     console.error('Error in sheets:test IPC handler:', error);
@@ -84,7 +89,7 @@ ipcMain.handle('sheets:test', async (event, data) => {
 
 ipcMain.handle('db:connect', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/db/connect', data);
+    const response = await client.post('http://localhost:5000/api/db/test', data);
     return response.data;
   } catch (error) {
     console.error('Error in db:connect IPC handler:', error);
@@ -94,7 +99,7 @@ ipcMain.handle('db:connect', async (event, data) => {
 
 ipcMain.handle('db:createSchema', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/db/schema', data);
+    const response = await client.post('http://localhost:5000/api/db/schema', data);
     return response.data;
   } catch (error) {
     console.error('Error in db:createSchema IPC handler:', error);
@@ -104,7 +109,7 @@ ipcMain.handle('db:createSchema', async (event, data) => {
 
 ipcMain.handle('db:clear', async (event, data) => {
   try {
-    const response = await axios.delete('http://localhost:5000/api/db/clear', { data });
+    const response = await client.delete('http://localhost:5000/api/db/clear', { data });
     return response.data;
   } catch (error) {
     console.error('Error in db:clear IPC handler:', error);
@@ -114,7 +119,7 @@ ipcMain.handle('db:clear', async (event, data) => {
 
 ipcMain.on('migration:start', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/migrate', data, {
+    const response = await client.post('http://localhost:5000/api/migrate', data, {
       responseType: 'stream'
     });
 
@@ -139,7 +144,7 @@ ipcMain.on('migration:start', async (event, data) => {
 
 ipcMain.handle('rejection:loadData', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/rejection_trends', data);
+    const response = await client.post('http://localhost:5000/api/rejection_trends', data);
     return response.data;
   } catch (error) {
     console.error('Error in rejection:loadData IPC handler:', error);
@@ -149,7 +154,7 @@ ipcMain.handle('rejection:loadData', async (event, data) => {
 
 ipcMain.handle('rejection:loadVendors', async (event, data) => {
   try {
-    const response = await axios.get('http://localhost:5000/api/vendors');
+    const response = await client.get('http://localhost:5000/api/vendors');
     return response.data;
   } catch (error) {
     console.error('Error in rejection:loadVendors IPC handler:', error);
@@ -159,7 +164,7 @@ ipcMain.handle('rejection:loadVendors', async (event, data) => {
 
 ipcMain.handle('rejection:exportTrends', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/rejection_trends/export', data, {
+    const response = await client.post('http://localhost:5000/api/rejection_trends/export', data, {
       responseType: 'arraybuffer'
     });
 
@@ -180,7 +185,7 @@ ipcMain.handle('rejection:exportTrends', async (event, data) => {
 
 ipcMain.handle('search:loadFilterOptions', async (event) => {
   try {
-    const response = await axios.get('http://localhost:5000/api/search/filters');
+    const response = await client.get('http://localhost:5000/api/search/filters');
     return response.data;
   } catch (error) {
     console.error('Error in search:loadFilterOptions IPC handler:', error);
@@ -190,7 +195,7 @@ ipcMain.handle('search:loadFilterOptions', async (event) => {
 
 ipcMain.handle('search:performSearch', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/search', data);
+    const response = await client.post('http://localhost:5000/api/search', data);
     return response.data;
   } catch (error) {
     console.error('Error in search:performSearch IPC handler:', error);
@@ -200,7 +205,7 @@ ipcMain.handle('search:performSearch', async (event, data) => {
 
 ipcMain.handle('search:exportSearchResults', async (event, data) => {
   try {
-    const response = await axios.post('http://localhost:5000/api/search/export', data, {
+    const response = await client.post('http://localhost:5000/api/search/export', data, {
       responseType: 'arraybuffer'
     });
 

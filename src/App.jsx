@@ -24,13 +24,15 @@ import RejectionTrendsTab from './components/RejectionTrendsTab';
 import SettingsPanel from './components/SettingsPanel';
 import CustomAlert from './components/CustomAlert';
 import Login from './components/Login';
+import Register from './components/Register';
 
 const AppContent = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { isDarkMode, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
   const { isLoggedIn } = useSelector((state) => state.auth);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -38,9 +40,9 @@ const AppContent = () => {
 
   useEffect(() => {
     if (!isLoggedIn) {
-      setShowLogin(true);
+      setShowAuthModal(true);
     } else {
-      setShowLogin(false);
+      setShowAuthModal(false);
     }
   }, [isLoggedIn]);
 
@@ -68,9 +70,20 @@ const AppContent = () => {
         )}
       </AnimatePresence>
 
-      {/* Login Modal */}
+      {/* Auth Modals */}
       <AnimatePresence>
-        {showLogin && <Login onClose={() => setShowLogin(false)} />}
+        {showAuthModal && authMode === 'login' && (
+          <Login 
+            onClose={() => setShowAuthModal(false)} 
+            onSwitchToRegister={() => setAuthMode('register')} 
+          />
+        )}
+        {showAuthModal && authMode === 'register' && (
+          <Register 
+            onClose={() => setShowAuthModal(false)} 
+            onSwitchToLogin={() => setAuthMode('login')} 
+          />
+        )}
       </AnimatePresence>
 
       {/* Header */}
@@ -180,7 +193,10 @@ const AppContent = () => {
         onClose={() => dispatch(closeSettingsPanel())}
         isDarkMode={isDarkMode}
         toggleDarkMode={() => dispatch(toggleDarkMode())}
-        onLoginClick={() => setShowLogin(true)}
+        onLoginClick={() => {
+          setAuthMode('login');
+          setShowAuthModal(true);
+        }}
       />
     </div>
   );

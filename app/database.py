@@ -1,42 +1,34 @@
 import os
 import psycopg2
 from psycopg2 import pool
-
-# Global database connection pool
-db_pool = None
-
-def init_db_pool(host, port, dbname, user, password):
-    """Initializes the database connection pool."""
-    global db_pool
-    if db_pool:
-        db_pool.closeall()
-    try:
-        db_pool = pool.ThreadedConnectionPool(
-            minconn=1,
-            maxconn=10,
-            host=host,
-            port=port,
-            dbname=dbname,
-            user=user,
-            password=password
-        )
-        print("Database connection pool initialized successfully.")
-        return True
-    except psycopg2.Error as e:
-        print(f"Error initializing database pool: {e}")
-        db_pool = None
-        return False
+from flask import session, g
 
 def get_db_connection():
-    """Gets a connection from the pool."""
-    if not db_pool:
-        raise ConnectionError("Database connection pool is not available.")
-    return db_pool.getconn()
+    """
+    Gets a connection from the pool for the current request.
+    If a connection is not available, it creates a new one and stores it in the request context 'g'.
+    """
+    if 'db_conn' not in g:
+        db_config = session.get('db_config')
+        if not db_config:
+            raise ConnectionError("Database configuration not found in session. Please login.")
+        
+        try:
+            g.db_conn = psycopg2.connect(**db_config)
+        except psycopg2.Error as e:
+            raise ConnectionError(f"Database connection failed: {e}") from e
+            
+    return g.db_conn
 
-def return_db_connection(conn):
-    """Returns a connection to the pool."""
-    if db_pool:
-        db_pool.putconn(conn)
+def close_db_connection(e=None):
+    """Closes the database connection at the end of the request."""
+    db_conn = g.pop('db_conn', None)
+    if db_conn is not None:
+        db_conn.close()
+
+def init_app(app):
+    """Register the close_db_connection function to be called when the app context is torn down."""
+    app.teardown_appcontext(close_db_connection)
 
 def check_single_db_connection(host, port, dbname, user, password):
     """Attempts to establish a single database connection with provided parameters."""

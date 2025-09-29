@@ -10,7 +10,8 @@ def create_app():
     
     # Create Flask app
     app = Flask(__name__)
-    CORS(app)
+    app.secret_key = os.urandom(24)
+    CORS(app, supports_credentials=True)
     
     
     
@@ -27,14 +28,18 @@ def create_app():
     from app.routes.search_routes import search_bp
     from app.routes.report_routes import report_bp
     from app.routes.home_routes import home_bp
-    
+    from app.routes.auth_routes import auth_bp
+
     app.register_blueprint(db_bp, url_prefix='/api')
     app.register_blueprint(data_bp, url_prefix='/api')
     app.register_blueprint(search_bp, url_prefix='/api')
     app.register_blueprint(report_bp, url_prefix='/api')
     app.register_blueprint(home_bp, url_prefix='/api')
-    
+    app.register_blueprint(auth_bp, url_prefix='/api')
+
+    from app import database
+    database.init_app(app)
+
     for rule in app.url_map.iter_rules():
-        print(rule)
-    
+        print(rule)    
     return app

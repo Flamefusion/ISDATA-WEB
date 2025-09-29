@@ -2,16 +2,35 @@ import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { login } from '../store/slices/authSlice';
 
-const Login = ({ onClose }) => {
+const Login = ({ onClose, onSwitchToRegister }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const dispatch = useDispatch();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    // For now, we'll just dispatch the login action with a dummy user
-    dispatch(login({ name: username }));
-    onClose();
+    try {
+      const response = await fetch('http://localhost:5000/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        dispatch(login({ name: username }));
+        onClose();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('An error occurred during login.');
+    }
   };
 
   return (
@@ -61,6 +80,9 @@ const Login = ({ onClose }) => {
             </button>
           </div>
         </form>
+        <p className="text-center text-sm mt-4">
+          Don't have an account? <button onClick={onSwitchToRegister} className="font-bold text-blue-500 hover:text-blue-800">Register</button>
+        </p>
       </div>
     </div>
   );

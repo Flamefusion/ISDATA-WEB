@@ -8,9 +8,27 @@ const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode, onLoginCli
   const dispatch = useDispatch();
   const { isLoggedIn, user } = useSelector((state) => state.auth);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    onClose();
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        dispatch(logout());
+        onClose();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      alert('An error occurred during logout.');
+    }
   };
 
   return (

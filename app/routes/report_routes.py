@@ -3,7 +3,7 @@ import csv
 import io
 import psycopg2
 import pandas as pd
-from app.database import get_db_connection, return_db_connection
+from app.database import get_db_connection
 
 report_bp = Blueprint('reports', __name__)
 
@@ -24,9 +24,6 @@ def get_vendors():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Error fetching vendors: {e}")
         return jsonify({'error': f'Failed to fetch vendors: {str(e)}'}), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @report_bp.route('/daily_report', methods=['POST'])
 def get_daily_report():
@@ -265,9 +262,6 @@ def get_daily_report():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Error generating daily report: {e}")
         return jsonify({'error': f'Failed to generate report: {str(e)}'}), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @report_bp.route('/export_daily_report', methods=['POST'])
 def export_daily_report():
@@ -367,9 +361,6 @@ def export_daily_report():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Error exporting daily report: {e}")
         return jsonify({'error': f'Failed to export report: {str(e)}'}), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @report_bp.route('/rejection_trends', methods=['POST'])
 def get_rejection_trends():
@@ -484,9 +475,6 @@ def get_rejection_trends():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Error generating rejection trends: {e}", exc_info=True)
         return jsonify({'error': f'Failed to generate rejection trends: {str(e)}'}), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
 
 @report_bp.route('/rejection_trends/export', methods=['POST'])
 def export_rejection_trends():
@@ -664,6 +652,3 @@ def export_rejection_trends():
     except (psycopg2.Error, Exception) as e:
         current_app.logger.error(f"Error generating rejection trends export: {e}")
         return jsonify({'error': f'Failed to generate rejection trends export: {str(e)}'}), 500
-    finally:
-        if conn:
-            return_db_connection(conn)
