@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, Response, current_app
 import io
-import psycopg2
+
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials

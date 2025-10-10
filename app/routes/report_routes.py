@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, Response, current_app
 import csv
 import io
-import psycopg2
+
 import pandas as pd
 from app.database import get_db_connection
 
