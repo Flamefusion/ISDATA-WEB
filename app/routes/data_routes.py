@@ -12,20 +12,10 @@ data_bp = Blueprint('data', __name__)
 @data_bp.route('/data', methods=['GET'])
 def get_data():
     """Get all rings data from the database."""
-    conn = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM rings;')
-        
-        # Fetch column names from cursor description
-        colnames = [desc[0] for desc in cur.description]
-        
-        # Fetch all rows and convert to list of dictionaries
-        data = [dict(zip(colnames, row)) for row in cur.fetchall()]
-        
-        cur.close()
-        return jsonify(data)
+        supabase = get_db_connection()
+        response = supabase.table('rings').select("*").execute()
+        return jsonify(response.data)
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
         return jsonify(error=str(e)), 500
@@ -80,83 +70,18 @@ def migrate():
             return
 
         # 3. Migrate Data
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cursor:
-                yield from log_callback("Creating temporary table for bulk data loading...")
-                cursor.execute("""
-                    CREATE TEMP TABLE rings_temp (
-                        date DATE, mo_number VARCHAR(50), vendor VARCHAR(50), serial_number VARCHAR(100) UNIQUE,
-                        ring_size VARCHAR(100), sku VARCHAR(50), pcb VARCHAR(50), qc_code VARCHAR(50), qc_person VARCHAR(100),
-                        vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT
-                    ) ON COMMIT DROP;
-                """)
-
-                yield from log_callback("Preparing data for bulk COPY...")
-                string_buffer = io.StringIO()
-                cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
-                null_identifier = '\\N'
-
-                for record in merged_data:
-                    row_data = []
-                    for col in cols:
-                        value = record.get(col)
-                        is_missing = pd.isna(value) or str(value).strip() == ''
-
-                        if col == 'date':
-                            if is_missing:
-                                clean_value = null_identifier
-                            else:
-                                try:
-                                    clean_value = pd.to_datetime(value).date().isoformat()
-                                except (ValueError, TypeError):
-                                    clean_value = null_identifier
-                        else:
-                            if is_missing:
-                                clean_value = ''
-                            else:
-                                clean_value = str(value).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
-                        
-                        row_data.append(clean_value)
-                    
-                    string_buffer.write('\t'.join(row_data) + '\n')
-                
-                string_buffer.seek(0)
-                
-                yield from log_callback(f"Copying {len(merged_data)} records to DB...")
-                cursor.copy_expert(f"COPY rings_temp({','.join(cols)}) FROM STDIN WITH (FORMAT text, NULL '{null_identifier}')", string_buffer)
-
-                yield from log_callback("Updating existing records...")
-                update_sql = """
-                UPDATE rings r SET
-                    date = t.date, mo_number = t.mo_number, vendor = t.vendor, ring_size = t.ring_size,
-                    sku = t.sku, pcb = t.pcb, qc_code = t.qc_code, qc_person = t.qc_person, 
-                    vqc_status = t.vqc_status, vqc_reason = t.vqc_reason,
-                    ft_status = t.ft_status, ft_reason = t.ft_reason, updated_at = CURRENT_TIMESTAMP
-                FROM rings_temp t
-                WHERE r.serial_number = t.serial_number;
-                """
-                cursor.execute(update_sql)
-                yield from log_callback(f"{cursor.rowcount} existing records updated.")
-
-                yield from log_callback("Inserting new records...")
-                insert_sql = """
-                INSERT INTO rings (date, mo_number, vendor, serial_number, ring_size, sku, pcb, qc_code, qc_person, vqc_status, vqc_reason, ft_status, ft_reason)
-                SELECT t.date, t.mo_number, t.vendor, t.serial_number, t.ring_size, t.sku, t.pcb, t.qc_code, t.qc_person, t.vqc_status, t.vqc_reason, t.ft_status, t.ft_reason
-                FROM rings_temp t
-                LEFT JOIN rings r ON t.serial_number = r.serial_number
-                WHERE r.serial_number IS NULL;
-                """
-                cursor.execute(insert_sql)
-                yield from log_callback(f"{cursor.rowcount} new records inserted.")
-
-            conn.commit()
+            supabase = get_db_connection()
+            yield from log_callback(f"Upserting {len(merged_data)} records to DB...")
+            
+            # Convert merged_data to a list of dictionaries
+            data_to_upsert = [record for record in merged_data]
+            
+            response = supabase.table('rings').upsert(data_to_upsert, on_conflict='serial_number').execute()
+            
             yield from log_callback("Migration completed successfully!")
 
-        except (psycopg2.Error, Exception) as e:
-            if conn:
-                conn.rollback()
+        except Exception as e:
             yield from log_callback(f"ERROR: High-speed migration failed: {e}")
 
     return Response(generate(), mimetype='text/event-stream')

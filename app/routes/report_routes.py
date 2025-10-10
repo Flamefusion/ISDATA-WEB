@@ -10,18 +10,16 @@ report_bp = Blueprint('reports', __name__)
 @report_bp.route('/vendors', methods=['GET'])
 def get_vendors():
     """Returns a list of unique vendors from the rings table."""
-    conn = None
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT vendor FROM rings ORDER BY vendor")
-            vendors = [row[0] for row in cursor.fetchall()]
-            return jsonify(['all'] + vendors)
+        supabase = get_db_connection()
+        response = supabase.table('rings').select('vendor').execute()
+        vendors = sorted(list(set([row['vendor'] for row in response.data])))
+        return jsonify(['all'] + vendors)
     except ConnectionError:
         # This is a special case where the database is not connected yet.
         # Return an empty list of vendors so the frontend can handle it.
         return jsonify(['all'])
-    except (psycopg2.Error, Exception) as e:
+    except Exception as e:
         current_app.logger.error(f"Error fetching vendors: {e}")
         return jsonify({'error': f'Failed to fetch vendors: {str(e)}'}), 500
 
@@ -35,36 +33,15 @@ def get_daily_report():
     if not selected_date:
         return jsonify({'error': 'Date is required'}), 400
     
-    conn = None
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # Base query conditions
-            date_condition = "date = %s"
-            vendor_condition = "" if selected_vendor == 'all' else " AND vendor = %s"
-            params = [selected_date]
-            if selected_vendor != 'all':
-                params.append(selected_vendor)
-            
-            # Get all rings with their VQC and FT data
-            cursor.execute(f"""
-                SELECT 
-                    vendor,
-                    serial_number,
-                    mo_number,
-                    sku,
-                    ring_size,
-                    vqc_status,
-                    vqc_reason,
-                    ft_status,
-                    ft_reason,
-                    created_at
-                FROM rings 
-                WHERE {date_condition}{vendor_condition}
-                ORDER BY created_at, vendor, serial_number
-            """, tuple(params))
-            
-            rings_data = cursor.fetchall()
+        supabase = get_db_connection()
+        
+        query = supabase.table('rings').select('vendor, serial_number, mo_number, sku, ring_size, vqc_status, vqc_reason, ft_status, ft_reason, created_at').eq('date', selected_date)
+        if selected_vendor != 'all':
+            query = query.eq('vendor', selected_vendor)
+        
+        response = query.order('created_at').order('vendor').order('serial_number').execute()
+        rings_data = response.data
             
             if not rings_data:
                 return jsonify({
@@ -274,40 +251,15 @@ def export_daily_report():
     if not selected_date:
         return jsonify({'error': 'Date is required'}), 400
     
-    conn = None
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # Get detailed data for export
-            date_condition = "date = %s"
-            vendor_condition = "" if selected_vendor == 'all' else " AND vendor = %s"
-            params = [selected_date]
-            if selected_vendor != 'all':
-                params.append(selected_vendor)
+        supabase = get_db_connection()
+        
+        query = supabase.table('rings').select('date, vendor, serial_number, mo_number, sku, ring_size, vqc_status, vqc_reason, ft_status, ft_reason, created_at').eq('date', selected_date)
+        if selected_vendor != 'all':
+            query = query.eq('vendor', selected_vendor)
             
-            cursor.execute(f"""
-                SELECT 
-                    date,
-                    vendor,
-                    serial_number,
-                    mo_number,
-                    sku,
-                    ring_size,
-                    vqc_status,
-                    vqc_reason,
-                    ft_status,
-                    ft_reason,
-                    CASE 
-                        WHEN vqc_status = 'ACCEPTED' THEN 'Accepted'
-                        ELSE 'Rejected'
-                    END as overall_status,
-                    created_at
-                FROM rings 
-                WHERE {date_condition}{vendor_condition}
-                ORDER BY created_at, vendor, serial_number
-            """, tuple(params))
-            
-            results = cursor.fetchall()
+        response = query.order('created_at').order('vendor').order('serial_number').execute()
+        results = response.data
             
             if export_format.lower() == 'csv':
                 output = io.StringIO()
@@ -374,28 +326,26 @@ def get_rejection_trends():
     if not all([date_from, date_to, selected_vendor]):
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
 
-    conn = None
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # Generate date range
-            cursor.execute("""
-                SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date as date_col
-            """, (date_from, date_to))
-            date_range = [row[0].strftime('%Y-%m-%d') for row in cursor.fetchall()]
+        supabase = get_db_connection()
+        
+        # Generate date range in Python
+        date_from_dt = pd.to_datetime(date_from)
+        date_to_dt = pd.to_datetime(date_to)
+        date_range = pd.date_range(start=date_from_dt, end=date_to_dt).strftime('%Y-%m-%d').tolist()
 
-            # Fetch all potentially rejected rings
-            cursor.execute("""
-                SELECT date, vqc_status, vqc_reason, ft_status, ft_reason
-                FROM rings
-                WHERE date BETWEEN %s AND %s AND vendor = %s
-                AND (
-                    (vqc_status IS NOT NULL AND UPPER(vqc_status) NOT IN ('ACCEPTED', 'PASS', '')) OR
-                    (ft_status IS NOT NULL AND UPPER(ft_status) NOT IN ('ACCEPTED', 'PASS', ''))
-                )
-            """, (date_from, date_to, selected_vendor))
+        # Fetch all potentially rejected rings
+        query = supabase.table('rings').select('date, vqc_status, vqc_reason, ft_status, ft_reason').gte('date', date_from).lte('date', date_to).eq('vendor', selected_vendor)
+        
+        if rejection_stage_filter == 'vqc':
+            query = query.not_.in_('vqc_status', ['ACCEPTED', 'PASS', ''])
+        elif rejection_stage_filter == 'ft':
+            query = query.not_.in_('ft_status', ['ACCEPTED', 'PASS', ''])
+        else:
+            query = query.or_('vqc_status.not.in.("ACCEPTED","PASS",""),ft_status.not.in.("ACCEPTED","PASS","")')
 
-            raw_records = cursor.fetchall()
+        response = query.execute()
+        raw_records = response.data
             
             # Process records based on business logic to get final rejection reason
             processed_rejections = []
@@ -489,48 +439,26 @@ def export_rejection_trends():
     if not all([date_from, date_to, selected_vendor]):
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
     
-    conn = None
     try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # Generate date range
-            cursor.execute("""
-                SELECT generate_series(%s::date, %s::date, '1 day'::interval)::date as date_col
-            """, (date_from, date_to))
-            date_range = [row[0].strftime('%Y-%m-%d') for row in cursor.fetchall()]
+        supabase = get_db_connection()
+        
+        # Generate date range in Python
+        date_from_dt = pd.to_datetime(date_from)
+        date_to_dt = pd.to_datetime(date_to)
+        date_range = pd.date_range(start=date_from_dt, end=date_to_dt).strftime('%Y-%m-%d').tolist()
 
-            # Dynamically build the rejection condition based on the selected stage
-            rejection_condition = ""
-            if rejection_stage == 'vqc':
-                rejection_condition = "AND (vqc_status IS NOT NULL AND UPPER(vqc_status) NOT IN ('ACCEPTED', 'PASS', ''))"
-            elif rejection_stage == 'ft':
-                rejection_condition = "AND (ft_status IS NOT NULL AND UPPER(ft_status) NOT IN ('ACCEPTED', 'PASS', ''))"
-            else: # 'both'
-                rejection_condition = """
-                    AND (
-                        (vqc_status IS NOT NULL AND UPPER(vqc_status) NOT IN ('ACCEPTED', 'PASS', '')) 
-                        OR 
-                        (ft_status IS NOT NULL AND UPPER(ft_status) NOT IN ('ACCEPTED', 'PASS', ''))
-                    )
-                """
+        # Dynamically build the rejection condition based on the selected stage
+        query = supabase.table('rings').select('date, vendor, vqc_reason, ft_reason, vqc_status, ft_status').gte('date', date_from).lte('date', date_to).eq('vendor', selected_vendor)
+
+        if rejection_stage == 'vqc':
+            query = query.not_.in_('vqc_status', ['ACCEPTED', 'PASS', ''])
+        elif rejection_stage == 'ft':
+            query = query.not_.in_('ft_status', ['ACCEPTED', 'PASS', ''])
+        else: # 'both'
+            query = query.or_('vqc_status.not.in.("ACCEPTED","PASS",""),ft_status.not.in.("ACCEPTED","PASS","")')
             
-            # Get rejection data using the dynamic condition
-            query = f"""
-                SELECT 
-                    date,
-                    vendor,
-                    vqc_reason,
-                    ft_reason,
-                    vqc_status,
-                    ft_status
-                FROM rings 
-                WHERE date BETWEEN %s AND %s 
-                AND vendor = %s
-                {rejection_condition}
-            """
-            cursor.execute(query, (date_from, date_to, selected_vendor))
-            
-            rejection_records = cursor.fetchall()
+        response = query.execute()
+        rejection_records = response.data
             
             # Same rejection categories as above
             rejection_categories = {
