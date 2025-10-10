@@ -25,3 +25,16 @@ def check_single_db_connection(url, key):
         return True, "Database connection successful!"
     except Exception as e:
         return False, f"Database connection failed: {e}"
+
+
+def close_db(e=None):
+    """Closes the database connection."""
+    # The Supabase client doesn't have a close() method in the same way
+    # a traditional DB-API 2.0 connection does. Connection pooling and
+    # resource management are handled by the underlying libraries (httpx).
+    # This function is here to fit the Flask application factory pattern.
+    g.pop('db_conn', None)
+
+def init_app(app):
+    """Initializes the application with the database."""
+    app.teardown_appcontext(close_db)
