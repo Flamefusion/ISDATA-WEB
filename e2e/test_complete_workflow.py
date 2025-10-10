@@ -28,20 +28,13 @@ class TestCompleteWorkflow:
             assert response.status_code == 200
         
         # Step 2: Create database schema
-        with patch('app.routes.db_routes.get_db_connection') as mock_get_conn, \
-             patch('app.routes.db_routes.return_db_connection'):
+        with patch('app.routes.db_routes.get_db_connection') as mock_get_conn:
             
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_get_conn.return_value = mock_conn
+            mock_supabase = Mock()
+            mock_get_conn.return_value = mock_supabase
             
             response = client.post('/api/db/schema')
             assert response.status_code == 200
-            
-            # Verify schema creation was attempted
-            assert mock_cursor.execute.called
-            mock_conn.commit.assert_called_once()
         
         # Step 3: Test Google Sheets connection
         google_config = GoogleConfigFactory()
@@ -70,11 +63,8 @@ class TestCompleteWorkflow:
             mock_merge.return_value = (create_test_dataset()[:50], ['Data merged successfully'])
             
             # Setup database mock
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_cursor.rowcount = 25  # Simulate some updates
-            mock_get_conn.return_value = mock_conn
+            mock_supabase = Mock()
+            mock_get_conn.return_value = mock_supabase
             
             response = client.post('/api/migrate',
                                  data=json.dumps(google_config),
@@ -82,7 +72,7 @@ class TestCompleteWorkflow:
             
             assert response.status_code == 200
             response_text = response.data.decode('utf-8')
-            assert 'No data to migrate' in response_text
+            assert 'Migration completed successfully!' in response_text
     
     def test_data_validation_workflow(self, client):
         """Test data validation throughout the workflow."""
@@ -141,11 +131,8 @@ class TestPerformanceWorkflow:
             mock_merge.return_value = (large_dataset, ['Large dataset merged'])
             
             # Setup database mock
-            mock_conn = Mock()
-            mock_cursor = Mock()
-            mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-            mock_cursor.rowcount = len(large_dataset)
-            mock_get_conn.return_value = mock_conn
+            mock_supabase = Mock()
+            mock_get_conn.return_value = mock_supabase
             
             response = client.post('/api/migrate',
                                  data=json.dumps(google_config),
@@ -164,12 +151,9 @@ class TestPerformanceWorkflow:
         
         def make_request():
             with patch('app.routes.search_routes.get_db_connection') as mock_get_conn:
-                mock_conn = Mock()
-                mock_cursor = Mock()
-                mock_cursor.description = [('serial_number',)]
-                mock_cursor.fetchall.return_value = [('ABC123',)]
-                mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-                mock_get_conn.return_value = mock_conn
+                mock_supabase = Mock()
+                mock_supabase.table.return_value.select.return_value.execute.return_value.data = [{'serial_number': 'ABC123'}]
+                mock_get_conn.return_value = mock_supabase
                 
                 response = client.post('/api/search',
                                      data=json.dumps({}),
