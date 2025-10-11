@@ -11,7 +11,7 @@ import { showAlert } from '../slices/uiSlice';
 
 export const startMigration = createAsyncThunk(
   'migration/startMigration',
-  async (config, { dispatch }) => {
+  async (_, { dispatch }) => { // Config is no longer needed
     dispatch(clearMigrationLog());
     dispatch(setMigrationRunning(true));
     dispatch(addMigrationLog('Starting migration process...'));
@@ -54,7 +54,8 @@ export const startMigration = createAsyncThunk(
         }
       });
 
-      window.api.startMigration(config);
+      // No longer pass config
+      window.api.startMigration();
     });
   }
 );

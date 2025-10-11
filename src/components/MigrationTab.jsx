@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { Play, Loader } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { startMigration } from '../store/thunks/migrationThunks';
-import { showAlert } from '../store/slices/uiSlice';
 
 // Animation variants
 const fadeInUp = {
@@ -16,27 +15,10 @@ const fadeInUp = {
 const MigrationTab = () => {
   const dispatch = useDispatch();
   const { migrationProgress, migrationLog, isRunning, error } = useSelector((state) => state.migration);
-  const config = useSelector((state) => state.config);
 
   const handleStartMigration = () => {
-    // Validate configuration
-    if (!config.serviceAccountContent) {
-      dispatch(showAlert({ 
-        message: 'Please configure and test Google Sheets connection first', 
-        type: 'error' 
-      }));
-      return;
-    }
-
-    if (!config.vendorDataUrl) {
-      dispatch(showAlert({ 
-        message: 'Vendor Data URL is required for migration', 
-        type: 'error' 
-      }));
-      return;
-    }
-
-    dispatch(startMigration(config));
+    // No longer needs to pass config, backend handles it
+    dispatch(startMigration());
   };
 
   return (
@@ -47,7 +29,7 @@ const MigrationTab = () => {
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
           onClick={handleStartMigration} 
-          disabled={isRunning || !config.serviceAccountContent} 
+          disabled={isRunning} 
           className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
         >
           {isRunning ? 
@@ -56,39 +38,6 @@ const MigrationTab = () => {
           }
           {isRunning ? 'Migration Running...' : 'Start Migration'}
         </motion.button>
-      </div>
-
-      {/* Configuration Status */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/30 rounded-xl p-4">
-        <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-400 mb-2">
-          Migration Prerequisites
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${config.serviceAccountContent ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-gray-700 dark:text-gray-300">
-              Google Sheets Service Account: {config.serviceAccountContent ? 'Configured' : 'Not Configured'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${config.vendorDataUrl ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-gray-700 dark:text-gray-300">
-              Vendor Data URL: {config.vendorDataUrl ? 'Set' : 'Not Set'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${config.vqcDataUrl ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-            <span className="text-gray-700 dark:text-gray-300">
-              VQC Data URL: {config.vqcDataUrl ? 'Set' : 'Optional - Not Set'}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${config.ftDataUrl ? 'bg-green-500' : 'bg-orange-500'}`}></div>
-            <span className="text-gray-700 dark:text-gray-300">
-              FT Data URL: {config.ftDataUrl ? 'Set' : 'Optional - Not Set'}
-            </span>
-          </div>
-        </div>
       </div>
 
       {migrationLog.length > 0 && (
@@ -150,7 +99,6 @@ const MigrationTab = () => {
         </motion.div>
       )}
 
-      {/* Migration Instructions */}
       {migrationLog.length === 0 && (
         <motion.div 
           initial={{ opacity: 0, y: 20 }} 
