@@ -10,7 +10,11 @@ def create_app():
     
     # Create Flask app
     app = Flask(__name__)
-    app.secret_key = os.urandom(24)
+    secret_key = os.environ.get('SECRET_KEY')
+    if not secret_key:
+        app.logger.warning("SECRET_KEY not set, using a temporary random key. Sessions will not persist across restarts.")
+        secret_key = os.urandom(24).hex()
+    app.secret_key = secret_key
     CORS(app, supports_credentials=True)
     
     
