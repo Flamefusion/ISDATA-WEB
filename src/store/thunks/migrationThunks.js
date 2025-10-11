@@ -27,12 +27,15 @@ export const startMigration = createAsyncThunk(
             dispatch(setMigrationProgress(20));
           } else if (logMessage.message.includes('Starting merge')) {
             dispatch(setMigrationProgress(50));
-          } else if (logMessage.message.includes('Copying') && logMessage.message.includes('records to DB')) {
-            dispatch(setMigrationProgress(70));
-          } else if (logMessage.message.includes('Updating existing records')) {
-            dispatch(setMigrationProgress(85));
-          } else if (logMessage.message.includes('Inserting new records')) {
-            dispatch(setMigrationProgress(95));
+          } else if (logMessage.message.includes('Upserting batch')) {
+            // New progress logic for batching
+            const match = logMessage.message.match(/batch (\d+)\/(\d+)/);
+            if (match) {
+              const currentBatch = parseInt(match[1], 10);
+              const totalBatches = parseInt(match[2], 10);
+              const progress = 70 + (currentBatch / totalBatches) * 25; // Batches take up 25% of progress
+              dispatch(setMigrationProgress(progress));
+            }
           } else if (logMessage.message.includes('Migration completed successfully!')) {
             dispatch(setMigrationProgress(100));
             dispatch(showAlert({ message: 'Migration completed successfully!', type: 'success' }));
