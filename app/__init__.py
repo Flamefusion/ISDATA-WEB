@@ -5,9 +5,6 @@ from dotenv import load_dotenv
 
 def create_app():
     """Application factory pattern."""
-    # Load environment variables
-    load_dotenv()
-    
     # Create Flask app
     app = Flask(__name__)
     secret_key = os.environ.get('SECRET_KEY')
@@ -15,6 +12,12 @@ def create_app():
         app.logger.warning("SECRET_KEY not set, using a temporary random key. Sessions will not persist across restarts.")
         secret_key = os.urandom(24).hex()
     app.secret_key = secret_key
+
+    # Load Supabase configuration
+    app.config['SUPABASE_URL'] = os.environ.get('SUPABASE_URL')
+    app.config['SUPABASE_SERVICE_KEY'] = os.environ.get('SUPABASE_SERVICE_KEY')
+    app.config['SUPABASE_JWT_SECRET'] = os.environ.get('SUPABASE_JWT_SECRET')
+
     CORS(app, supports_credentials=True)
     
     
@@ -42,7 +45,8 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api')
 
     from app import database
-    database.init_app(app)
+    with app.app_context():
+        database.init_supabase_client()
 
     for rule in app.url_map.iter_rules():
         print(rule)    
