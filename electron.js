@@ -66,22 +66,22 @@ app.whenReady().then(async () => {
 // --- IPC Handlers ---
 
 // Auth
-icpMain.on('auth:set-token', (event, token) => { authToken = token; });
-icpMain.on('auth:clear-token', () => { authToken = null; });
+ipcMain.on('auth:set-token', (event, token) => { authToken = token; });
+ipcMain.on('auth:clear-token', () => { authToken = null; });
 
 // DB Schema
-icpMain.handle('db:createSchema', async (event, data) => {
+ipcMain.handle('db:createSchema', async (event, data) => {
   const response = await client.post('http://localhost:5000/api/db/schema', data);
   return response.data;
 });
 
-icpMain.handle('db:clear', async (event, data) => {
+ipcMain.handle('db:clear', async (event, data) => {
   const response = await client.delete('http://localhost:5000/api/db/clear', { data });
   return response.data;
 });
 
 // Migration
-icpMain.on('migration:start', async (event) => {
+ipcMain.on('migration:start', async (event) => {
   try {
     const response = await client.post('http://localhost:5000/api/migrate', {}, { responseType: 'stream' });
     response.data.on('data', (chunk) => {
@@ -100,33 +100,33 @@ icpMain.on('migration:start', async (event) => {
 });
 
 // Reports & Rejection Trends
-icpMain.handle('rejection:loadData', async (event, data) => {
+ipcMain.handle('rejection:loadData', async (event, data) => {
   const response = await client.post('http://localhost:5000/api/rejection_trends', data);
   return response.data;
 });
 
-icpMain.handle('rejection:loadVendors', async () => {
+ipcMain.handle('rejection:loadVendors', async () => {
   const response = await client.get('http://localhost:5000/api/vendors');
   return response.data;
 });
 
-icpMain.handle('rejection:exportTrends', async (event, data) => {
+ipcMain.handle('rejection:exportTrends', async (event, data) => {
     const response = await client.post('http://localhost:5000/api/rejection_trends/export', data, { responseType: 'arraybuffer' });
     return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: `rejection_trends.csv` };
 });
 
 // Search
-icpMain.handle('search:loadFilterOptions', async () => {
+ipcMain.handle('search:loadFilterOptions', async () => {
   const response = await client.get('http://localhost:5000/api/search/filters');
   return response.data;
 });
 
-icpMain.handle('search:performSearch', async (event, data) => {
+ipcMain.handle('search:performSearch', async (event, data) => {
   const response = await client.post('http://localhost:5000/api/search', data);
   return response.data;
 });
 
-icpMain.handle('search:exportSearchResults', async (event, data) => {
+ipcMain.handle('search:exportSearchResults', async (event, data) => {
     const response = await client.post('http://localhost:5000/api/search/export', data, { responseType: 'arraybuffer' });
     return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: 'search_results.csv' };
 });
