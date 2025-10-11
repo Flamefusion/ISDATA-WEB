@@ -121,19 +121,16 @@ const ConfigTab = () => {
     }
   };
 
-  const handleConnectAndSaveDb = async () => {
+  const handleConnectAndSaveSupabase = async () => {
     dispatch(setLoading(true));
-    const dbConfig = {
-      dbHost: config.dbHost,
-      dbPort: config.dbPort,
-      dbName: config.dbName,
-      dbUser: config.dbUser,
-      dbPassword: config.dbPassword,
+    const supabaseConfig = {
+      supabaseUrl: config.supabaseUrl,
+      supabaseAnonKey: config.supabaseAnonKey,
     };
 
     try {
       // First, try to connect to the database
-      const result = await window.api.connectDb(dbConfig);
+      const result = await window.api.connectSupabase(supabaseConfig);
       
       if (result.status === 'success') {
         dispatch(setConnectionStatus({ type: 'db', status: 'success' }));
@@ -144,7 +141,7 @@ const ConfigTab = () => {
 
         // If connection is successful, save the config
         try {
-          await window.api.saveConfig(dbConfig);
+          await window.api.saveConfig(supabaseConfig);
           dispatch(showAlert({ 
             message: 'Configuration saved successfully!', 
             type: 'success' 
@@ -350,7 +347,7 @@ const ConfigTab = () => {
         )}
       </motion.div>
 
-      {/* PostgreSQL Configuration */}
+      {/* Supabase Configuration */}
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }} 
         animate={{ opacity: 1, scale: 1 }} 
@@ -362,45 +359,38 @@ const ConfigTab = () => {
             <Database className="w-6 h-6 text-white" />
           </div>
           <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-            PostgreSQL Configuration
+            Supabase Configuration
           </h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { field: 'dbHost', label: 'Host', placeholder: 'localhost' },
-            { field: 'dbPort', label: 'Port', placeholder: '5432' },
-            { field: 'dbName', label: 'Database Name', placeholder: 'rings_db' },
-            { field: 'dbUser', label: 'Username', placeholder: 'postgres' }
-          ].map((item) => (
-            <div key={item.field} className="space-y-2">
-              <label htmlFor={item.field} className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
-                {item.label}
-              </label>
-              <input 
-                id={item.field}
-                name={item.field}
-                type="text" 
-                value={config[item.field]} 
-                onChange={(e) => dispatch(updateConfig({ [item.field]: e.target.value }))} 
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
-                placeholder={item.placeholder} 
-              />
-            </div>
-          ))}
-          
           <div className="md:col-span-2 space-y-2">
-            <label htmlFor="dbPassword" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
-              Password
+            <label htmlFor="supabaseUrl" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Supabase URL
             </label>
             <input 
-              id="dbPassword"
-              name="dbPassword"
-              type="password" 
-              value={config.dbPassword} 
-              onChange={(e) => dispatch(updateConfig({ dbPassword: e.target.value }))} 
+              id="supabaseUrl"
+              name="supabaseUrl"
+              type="text" 
+              value={config.supabaseUrl} 
+              onChange={(e) => dispatch(updateConfig({ supabaseUrl: e.target.value }))} 
               className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
-              placeholder="Database password" 
+              placeholder="https://<your-project-id>.supabase.co" 
+            />
+          </div>
+          
+          <div className="md:col-span-2 space-y-2">
+            <label htmlFor="supabaseAnonKey" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Supabase Anon Key
+            </label>
+            <input 
+              id="supabaseAnonKey"
+              name="supabaseAnonKey"
+              type="password" 
+              value={config.supabaseAnonKey} 
+              onChange={(e) => dispatch(updateConfig({ supabaseAnonKey: e.target.value }))} 
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
+              placeholder="Supabase anonymous key" 
             />
           </div>
         </div>
@@ -409,7 +399,7 @@ const ConfigTab = () => {
           <motion.button 
             whileHover={{ scale: 1.02 }} 
             whileTap={{ scale: 0.98 }} 
-            onClick={handleConnectAndSaveDb} 
+            onClick={handleConnectAndSaveSupabase} 
             disabled={isLoading} 
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold transition-colors duration-200 disabled:opacity-50 flex items-center gap-2"
           >
