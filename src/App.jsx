@@ -13,6 +13,9 @@ import {
   hideAlert,
 } from './store/slices/uiSlice';
 
+import { setSession } from './store/slices/authSlice';
+import { supabase } from './supabaseClient';
+
 // Components
 import HomeTab from './components/HomeTab';
 import ConfigTab from './components/ConfigTab';
@@ -30,13 +33,40 @@ const AppContent = () => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { isDarkMode, isSettingsPanelOpen, customAlert } = useSelector((state) => state.ui);
-  const { isLoggedIn } = useSelector((state) => state.auth);
+  const { session } = useSelector((state) => state.auth);
+  const isLoggedIn = !!session;
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
 
   useEffect(() => {
+    // On initial load, get the session and update the store
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      dispatch(setSession(session));
+    });
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      dispatch(setSession(session));
+    });
+
+    // Cleanup the subscription when the component unmounts
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
+
+  useEffect(() => {
+    // Send the token to the main process when the session changes
+    if (session?.access_token) {
+      window.api.setAuthToken(session.access_token);
+    } else {
+      window.api.clearAuthToken();
+    }
+  }, [session]);
 
   useEffect(() => {
     if (!isLoggedIn) {
