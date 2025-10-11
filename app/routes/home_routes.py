@@ -1,11 +1,15 @@
 from flask import Blueprint, jsonify, request, current_app
-from app.database import get_db_connection
 from datetime import datetime, timedelta
+
+from app.database import supabase
+from app.decorators import token_required
 
 home_bp = Blueprint('home', __name__)
 
 @home_bp.route('/home/summary', methods=['GET'])
-def get_home_summary():
+@token_required
+def get_home_summary(current_user):
+    """Returns a summary of data for the home screen."""
     try:
         start_date_str = request.args.get('startDate')
         end_date_str = request.args.get('endDate')
@@ -17,9 +21,7 @@ def get_home_summary():
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=7)
 
-        db = get_db_connection()
-        
-        response = db.rpc('get_home_summary', {
+        response = supabase.rpc('get_home_summary', {
             'p_start_date': start_date.isoformat(),
             'p_end_date': end_date.isoformat()
         }).execute()

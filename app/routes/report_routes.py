@@ -1,26 +1,27 @@
 from flask import Blueprint, request, jsonify, Response, current_app
 import io
 import pandas as pd
-from app.database import get_db_connection
+
+from app.database import supabase
+from app.decorators import token_required
 
 report_bp = Blueprint('reports', __name__)
 
 @report_bp.route('/vendors', methods=['GET'])
-def get_vendors():
+@token_required
+def get_vendors(current_user):
     """Returns a list of unique vendors from the rings table."""
     try:
-        db = get_db_connection()
-        # Assuming you will create a 'get_vendors' RPC in Supabase
-        response = db.rpc('get_vendors', {}).execute()
+        response = supabase.rpc('get_vendors', {}).execute()
         vendors = response.data if response.data else []
         return jsonify(['all'] + vendors)
     except Exception as e:
         current_app.logger.error(f"Error fetching vendors: {e}")
-        # Return a default list if the database isn't ready, so the UI doesn't break.
-        return jsonify(['all'])
+        return jsonify({'error': f'Failed to fetch vendors: {str(e)}'}), 500
 
 @report_bp.route('/daily_report', methods=['POST'])
-def get_daily_report():
+@token_required
+def get_daily_report(current_user):
     """Generates a comprehensive daily production report via RPC."""
     config = request.json
     selected_date = config.get('date')
@@ -30,8 +31,7 @@ def get_daily_report():
         return jsonify({'error': 'Date is required'}), 400
     
     try:
-        db = get_db_connection()
-        response = db.rpc('get_daily_report', {
+        response = supabase.rpc('get_daily_report', {
             'p_selected_date': selected_date,
             'p_selected_vendor': selected_vendor
         }).execute()
@@ -44,7 +44,8 @@ def get_daily_report():
         return jsonify({'error': f'Failed to generate report: {str(e)}'}), 500
 
 @report_bp.route('/export_daily_report', methods=['POST'])
-def export_daily_report():
+@token_required
+def export_daily_report(current_user):
     """Exports daily report data as CSV or Excel via RPC."""
     config = request.json
     selected_date = config.get('date')
@@ -55,8 +56,7 @@ def export_daily_report():
         return jsonify({'error': 'Date is required'}), 400
     
     try:
-        db = get_db_connection()
-        response = db.rpc('get_daily_report_export', {
+        response = supabase.rpc('get_daily_report_export', {
             'p_selected_date': selected_date,
             'p_selected_vendor': selected_vendor
         }).execute()
@@ -102,7 +102,8 @@ def export_daily_report():
         return jsonify({'error': f'Failed to export report: {str(e)}'}), 500
 
 @report_bp.route('/rejection_trends', methods=['POST'])
-def get_rejection_trends():
+@token_required
+def get_rejection_trends(current_user):
     """Generates rejection trends data via RPC."""
     config = request.json
     date_from = config.get('dateFrom')
@@ -114,8 +115,7 @@ def get_rejection_trends():
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
 
     try:
-        db = get_db_connection()
-        response = db.rpc('get_rejection_trends', {
+        response = supabase.rpc('get_rejection_trends', {
             'p_date_from': date_from,
             'p_date_to': date_to,
             'p_vendor': selected_vendor,
@@ -130,7 +130,8 @@ def get_rejection_trends():
         return jsonify({'error': f'Failed to generate rejection trends: {str(e)}'}), 500
 
 @report_bp.route('/rejection_trends/export', methods=['POST'])
-def export_rejection_trends():
+@token_required
+def export_rejection_trends(current_user):
     """Exports rejection trends data as CSV or Excel via RPC."""
     config = request.json
     date_from = config.get('dateFrom')
@@ -143,9 +144,7 @@ def export_rejection_trends():
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
     
     try:
-        db = get_db_connection()
-        # This RPC should return a list of dictionaries
-        response = db.rpc('get_rejection_trends_export', {
+        response = supabase.rpc('get_rejection_trends_export', {
             'p_date_from': date_from,
             'p_date_to': date_to,
             'p_vendor': selected_vendor,
@@ -173,7 +172,6 @@ def export_rejection_trends():
         
         elif export_format.lower() == 'excel':
             output = io.BytesIO()
-            # Using pandas to create the Excel file
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, sheet_name='Rejection Trends', index=False)
             

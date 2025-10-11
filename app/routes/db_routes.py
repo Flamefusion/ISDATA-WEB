@@ -1,46 +1,18 @@
-from flask import Blueprint, request, jsonify, session, current_app
+from flask import Blueprint, jsonify, current_app
 import traceback
-
-from app.database import check_supabase_connection, get_db_connection, get_admin_db_connection
+from app.database import supabase
+from app.decorators import token_required
 
 db_bp = Blueprint('db', __name__)
 
-@db_bp.route('/', methods=['GET'])
-def index():
-    """Returns a simple message to indicate the blueprint is active."""
-    return jsonify(message="Database blueprint is active")
-
-@db_bp.route('/db/connect_supabase', methods=['POST'])
-def connect_supabase():
-    """Connects to Supabase using parameters from the request body."""
-    config = request.json
-    supabase_url = config.get('supabaseUrl')
-    supabase_anon_key = config.get('supabaseAnonKey')
-    supabase_service_key = config.get('supabaseServiceKey')
-
-    if not all([supabase_url, supabase_anon_key]):
-        return jsonify(status='error', message='Supabase URL and Anon Key must be provided.'), 400
-
-    supabase_config = {
-        "supabaseUrl": supabase_url,
-        "supabaseAnonKey": supabase_anon_key,
-        "supabaseServiceKey": supabase_service_key
-    }
-    success, message = check_supabase_connection(supabase_url, supabase_anon_key)
-    if success:
-        session['supabase_config'] = supabase_config
-        return jsonify(status='success', message=message)
-    else:
-        return jsonify(status='error', message=message), 500
-
 @db_bp.route('/db/schema', methods=['POST'])
-def create_schema_endpoint():
+@token_required
+def create_schema_endpoint(current_user):
     """Endpoint to create the database schema."""
     log = []
     try:
-        db = get_admin_db_connection()
         log.append("Dropping existing schema objects if they exist...")
-        db.rpc('exec', {'sql': 'DROP TABLE IF EXISTS rings;'}).execute()
+        supabase.rpc('exec', {'sql': 'DROP TABLE IF EXISTS rings;'}).execute()
 
         log.append("Creating the 'rings' table...")
         create_table_sql = """
@@ -53,7 +25,7 @@ def create_schema_endpoint():
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
         """
-        db.rpc('exec', {'sql': create_table_sql}).execute()
+        supabase.rpc('exec', {'sql': create_table_sql}).execute()
         log.append("Creating indexes...")
         index_statements = [
             "CREATE INDEX idx_serial_number ON rings(serial_number);",
@@ -66,7 +38,7 @@ def create_schema_endpoint():
         ]
         for statement in index_statements:
             log.append(f"Executing: {statement}")
-            db.rpc('exec', {'sql': statement}).execute()
+            supabase.rpc('exec', {'sql': statement}).execute()
 
         log.append("Database schema and indexes created successfully.")
         return jsonify(status="success", logs=log)
@@ -76,11 +48,11 @@ def create_schema_endpoint():
         return jsonify(status="error", message=f"Database error during schema creation: {e}"), 500
 
 @db_bp.route('/db/clear', methods=['DELETE'])
-def clear_database_endpoint():
+@token_required
+def clear_database_endpoint(current_user):
     """Endpoint to clear the 'rings' table."""
     try:
-        db = get_admin_db_connection()
-        db.rpc('exec', {'sql': 'TRUNCATE TABLE rings RESTART IDENTITY'}).execute()
+        supabase.rpc('exec', {'sql': 'TRUNCATE TABLE rings RESTART IDENTITY'}).execute()
         return jsonify(status="success", message="Database 'rings' table has been cleared.")
     except Exception as e:
         current_app.logger.error(f"Database clearing failed: {e}")

@@ -1,33 +1,33 @@
-from flask import Blueprint, request, jsonify, Response, current_app, session
+from flask import Blueprint, request, jsonify, Response, current_app
 import pandas as pd
 import gspread
 import time
 from google.oauth2.service_account import Credentials
-from supabase import create_client
 
-from app.database import get_db_connection
+from app.database import supabase
+from app.decorators import token_required
 from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection
 
 data_bp = Blueprint('data', __name__)
 
 @data_bp.route('/data', methods=['GET'])
-def get_data():
+@token_required
+def get_data(current_user):
     """Get all rings data from the database."""
     try:
-        db = get_db_connection()
-        response = db.from_('rings').select('*').execute()
+        response = supabase.from_('rings').select('*').execute()
         return jsonify(response.data)
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
         return jsonify(error=str(e)), 500
 
 @data_bp.route('/migrate', methods=['POST'])
-def migrate():
+@token_required
+def migrate(current_user):
     """Migrate data from Google Sheets to database with streaming response."""
     config = request.json
-    supabase_config = session.get('supabase_config', {})
 
-    def generate(supa_config):
+    def generate():
         def log_callback(message):
             yield f"data: {message}\n\n"
 
@@ -67,15 +67,6 @@ def migrate():
 
         # 3. Migrate Data
         try:
-            url = supa_config.get("supabaseUrl")
-            key = supa_config.get("supabaseServiceKey")
-
-            if not all([url, key]):
-                yield from log_callback("ERROR: Supabase URL or Service Key not configured for migration.")
-                return
-
-            db = create_client(url, key)
-
             yield from log_callback(f"Starting to upsert {len(merged_data)} records in batches...")
             
             for record in merged_data:
@@ -101,7 +92,7 @@ def migrate():
                 for attempt in range(max_retries):
                     try:
                         yield from log_callback(f"Upserting batch {current_batch_num}/{num_of_batches} (attempt {attempt + 1}/{max_retries})...")
-                        db.from_('rings').upsert(batch, on_conflict='serial_number').execute()
+                        supabase.from_('rings').upsert(batch, on_conflict='serial_number').execute()
                         yield from log_callback(f"Batch {current_batch_num} successful.")
                         break
                     except Exception as e:
@@ -119,10 +110,11 @@ def migrate():
         except Exception as e:
             yield from log_callback(f"ERROR: Database migration failed: {e}")
 
-    return Response(generate(supabase_config), mimetype='text/event-stream')
+    return Response(generate(), mimetype='text/event-stream')
 
 @data_bp.route('/test_sheets_connection', methods=['POST'])
-def test_sheets_connection_endpoint():
+@token_required
+def test_sheets_connection_endpoint(current_user):
     """Test connection to Google Sheets."""
     config = request.json
     result = test_sheets_connection(config)

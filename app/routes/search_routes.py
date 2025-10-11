@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify, Response, current_app
 import io
 import pandas as pd
-from app.database import get_db_connection
+
+from app.database import supabase
+from app.decorators import token_required
 
 search_bp = Blueprint('search', __name__)
 
@@ -25,19 +27,18 @@ def _prepare_filters(filters):
     if filters.get('moNumbers'):
         params['p_mo_numbers'] = [s.strip().upper() for s in filters['moNumbers'].split(',') if s.strip()]
     
-    # Remove keys with None or empty list values so they are not sent in RPC
     return {k: v for k, v in params.items() if v}
 
 @search_bp.route('/search', methods=['POST'])
-def search():
+@token_required
+def search(current_user):
     """Search rings data with various filters via RPC."""
     filters = request.json
     current_app.logger.info(f"Received search filters: {filters}")
     
     try:
-        db = get_db_connection()
         params = _prepare_filters(filters)
-        response = db.rpc('search_rings', params).execute()
+        response = supabase.rpc('search_rings', params).execute()
         current_app.logger.info(f"Search completed successfully, returning {len(response.data)} records")
         return jsonify(response.data)
         
@@ -46,24 +47,24 @@ def search():
         return jsonify({'error': f'Search failed: {str(e)}'}), 500
 
 @search_bp.route('/search/filters', methods=['GET'])
-def get_search_filters():
+@token_required
+def get_search_filters(current_user):
     """Gets distinct values for search filters from the database via RPC."""
     try:
-        db = get_db_connection()
-        response = db.rpc('get_search_filters', {}).execute()
+        response = supabase.rpc('get_search_filters', {}).execute()
         return jsonify(response.data[0] if response.data else {})
     except Exception as e:
         current_app.logger.error(f"Database error loading filters: {e}")
         return jsonify(status="error", message=f"Database error loading filters: {e}"), 500
 
 @search_bp.route('/search/export', methods=['POST'])
-def export_search_results():
+@token_required
+def export_search_results(current_user):
     """Exports search results to a CSV file via RPC."""
     filters = request.json
     try:
-        db = get_db_connection()
         params = _prepare_filters(filters)
-        response = db.rpc('search_rings', params).execute()
+        response = supabase.rpc('search_rings', params).execute()
         results = response.data
 
         if not results:
