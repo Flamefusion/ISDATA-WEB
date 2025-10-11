@@ -42,3 +42,22 @@ def check_supabase_connection(url, key):
     except Exception as e:
 
         return False, f"Supabase connection failed: {e}"
+
+def get_admin_db_connection():
+    """
+    Gets a Supabase client with the service role key for admin tasks.
+    If a client is not available, it creates a new one and stores it in the request context 'g'.
+    """
+    if 'admin_db_conn' not in g:
+        supabase_config = session.get('supabase_config')
+        if not supabase_config or not supabase_config.get('supabaseServiceKey'):
+            raise ConnectionError("Supabase Service Key not found in session. Please configure it.")
+        
+        try:
+            url: str = supabase_config.get("supabaseUrl")
+            key: str = supabase_config.get("supabaseServiceKey")
+            g.admin_db_conn: Client = create_client(url, key)
+        except Exception as e:
+            raise ConnectionError(f"Supabase admin connection failed: {e}") from e
+            
+    return g.admin_db_conn
