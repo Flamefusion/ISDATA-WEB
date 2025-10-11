@@ -12,20 +12,10 @@ data_bp = Blueprint('data', __name__)
 @data_bp.route('/data', methods=['GET'])
 def get_data():
     """Get all rings data from the database."""
-    conn = None
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM rings;')
-        
-        # Fetch column names from cursor description
-        colnames = [desc[0] for desc in cur.description]
-        
-        # Fetch all rows and convert to list of dictionaries
-        data = [dict(zip(colnames, row)) for row in cur.fetchall()]
-        
-        cur.close()
-        return jsonify(data)
+        db = get_db_connection()
+        response = db.from_('rings').select('*').execute()
+        return jsonify(response.data)
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
         return jsonify(error=str(e)), 500
