@@ -79,7 +79,6 @@ const AppContent = () => {
   // Tab configuration
   const tabs = [
     { id: 'home', path: '/', label: 'Home', icon: Home, component: HomeTab },
-    { id: 'config', path: '/config', label: 'Configuration', icon: Database, component: ConfigTab },
     { id: 'migration', path: '/migration', label: 'Migration', icon: RefreshCw, component: MigrationTab },
     { id: 'preview', path: '/preview', label: 'Preview', icon: BarChart3, component: PreviewTab },
     { id: 'report', path: '/report', label: 'Report', icon: FileText, component: ReportTab },

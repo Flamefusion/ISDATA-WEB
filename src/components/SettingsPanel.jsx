@@ -2,33 +2,25 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XCircle, Sun, Moon, LogIn, LogOut, User } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../store/slices/authSlice';
+import { signOut } from '../store/slices/authSlice';
+import { showAlert } from '../store/slices/uiSlice';
 
 const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode, onLoginClick }) => {
   const dispatch = useDispatch();
-  const { isLoggedIn, user } = useSelector((state) => state.auth);
+  const { session } = useSelector((state) => state.auth);
+  const isLoggedIn = !!session;
+  const userEmail = session?.user?.email;
 
-  const handleLogout = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        dispatch(logout());
+  const handleLogout = () => {
+    dispatch(signOut())
+      .unwrap()
+      .then(() => {
+        dispatch(showAlert({ message: 'Logged out successfully.', type: 'success' }));
         onClose();
-      } else {
-        const errorData = await response.json();
-        alert(errorData.message || 'Logout failed');
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-      alert('An error occurred during logout.');
-    }
+      })
+      .catch((err) => {
+        dispatch(showAlert({ message: err, type: 'error' }));
+      });
   };
 
   return (
@@ -86,7 +78,7 @@ const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode, onLoginCli
                 <div className="flex items-center space-x-4">
                   <User className="w-10 h-10 text-gray-500" />
                   <div>
-                    <p className="font-semibold text-lg">{user.name}</p>
+                    <p className="font-semibold text-lg">{userEmail}</p>
                     <p className="text-sm text-gray-500">Logged In</p>
                   </div>
                 </div>
