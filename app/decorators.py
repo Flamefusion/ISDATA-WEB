@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import request, jsonify, current_app
-from app.database import supabase
+from app import database
 
 def token_required(f):
     """Decorator to protect routes with JWT authentication."""
@@ -18,7 +18,10 @@ def token_required(f):
 
         try:
             # Validate the token with Supabase
-            user_response = supabase.auth.get_user(token)
+            supabase_client = database.supabase
+            if supabase_client is None:
+                raise Exception("Supabase client is not initialized.")
+            user_response = supabase_client.auth.get_user(token)
             current_user = user_response.user
             if not current_user:
                 raise Exception("Invalid user from token")

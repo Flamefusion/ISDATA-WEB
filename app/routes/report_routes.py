@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, Response, current_app
 import io
 import pandas as pd
 
-from app.database import supabase
+from app import database
 from app.decorators import token_required
 
 report_bp = Blueprint('reports', __name__)
@@ -12,7 +12,10 @@ report_bp = Blueprint('reports', __name__)
 def get_vendors(current_user):
     """Returns a list of unique vendors from the rings table."""
     try:
-        response = supabase.rpc('get_vendors', {}).execute()
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.rpc('get_vendors', {}).execute()
         vendors = response.data if response.data else []
         return jsonify(['all'] + vendors)
     except Exception as e:
@@ -31,12 +34,15 @@ def get_daily_report(current_user):
         return jsonify({'error': 'Date is required'}), 400
     
     try:
-        response = supabase.rpc('get_daily_report', {
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.rpc('get_daily_report', {
             'p_selected_date': selected_date,
             'p_selected_vendor': selected_vendor
         }).execute()
         
-        report_data = response.data[0] if response.data else {}
+        report_data = response.data[0] if (response.data and len(response.data) > 0) else {}
         return jsonify(report_data)
         
     except Exception as e:
@@ -56,7 +62,10 @@ def export_daily_report(current_user):
         return jsonify({'error': 'Date is required'}), 400
     
     try:
-        response = supabase.rpc('get_daily_report_export', {
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.rpc('get_daily_report_export', {
             'p_selected_date': selected_date,
             'p_selected_vendor': selected_vendor
         }).execute()
@@ -115,14 +124,17 @@ def get_rejection_trends(current_user):
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
 
     try:
-        response = supabase.rpc('get_rejection_trends', {
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.rpc('get_rejection_trends', {
             'p_date_from': date_from,
             'p_date_to': date_to,
             'p_vendor': selected_vendor,
             'p_rejection_stage': rejection_stage_filter
         }).execute()
 
-        trends_data = response.data[0] if response.data else {}
+        trends_data = response.data[0] if (response.data and len(response.data) > 0) else {}
         return jsonify(trends_data)
             
     except Exception as e:
@@ -144,7 +156,10 @@ def export_rejection_trends(current_user):
         return jsonify({'error': 'dateFrom, dateTo, and vendor are required'}), 400
     
     try:
-        response = supabase.rpc('get_rejection_trends_export', {
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.rpc('get_rejection_trends_export', {
             'p_date_from': date_from,
             'p_date_to': date_to,
             'p_vendor': selected_vendor,

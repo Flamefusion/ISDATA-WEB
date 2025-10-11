@@ -6,7 +6,7 @@ import os
 import json
 from google.oauth2.service_account import Credentials
 
-from app.database import supabase
+from app import database
 from app.decorators import token_required
 from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection
 
@@ -17,7 +17,10 @@ data_bp = Blueprint('data', __name__)
 def get_data(current_user):
     """Get all rings data from the database."""
     try:
-        response = supabase.from_('rings').select('*').execute()
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        response = supabase_client.from_('rings').select('*').execute()
         return jsonify(response.data)
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
@@ -35,12 +38,14 @@ def migrate(current_user):
         # 1. Connect to Google API
         try:
             yield from log_callback("Connecting to Google API...")
-            service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
-            if not service_account_json:
-                yield from log_callback("ERROR: GOOGLE_SERVICE_ACCOUNT_JSON not set in environment.")
+            service_account_path = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+            if not service_account_path or not os.path.exists(service_account_path):
+                yield from log_callback(f"ERROR: GOOGLE_SERVICE_ACCOUNT_JSON path is not set or invalid: {service_account_path}")
                 return
 
-            service_account_info = json.loads(service_account_json)
+            with open(service_account_path) as f:
+                service_account_info = json.load(f)
+            
             scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
             creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
             gc = gspread.authorize(creds)
@@ -108,7 +113,10 @@ def migrate(current_user):
                 for attempt in range(max_retries):
                     try:
                         yield from log_callback(f"Upserting batch {current_batch_num}/{num_of_batches} (attempt {attempt + 1}/{max_retries})...")
-                        supabase.from_('rings').upsert(batch, on_conflict='serial_number').execute()
+                        supabase_client = database.supabase
+                        if supabase_client is None:
+                            raise Exception("Supabase client is not initialized.")
+                        supabase_client.from_('rings').upsert(batch, on_conflict='serial_number').execute()
                         yield from log_callback(f"Batch {current_batch_num} successful.")
                         break
                     except Exception as e:
@@ -133,12 +141,15 @@ def migrate(current_user):
 def test_sheets_connection_endpoint(current_user):
     """Test connection to Google Sheets using environment variables."""
     try:
-        service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
-        if not service_account_json:
-            return jsonify({'status': 'error', 'message': 'GOOGLE_SERVICE_ACCOUNT_JSON not set.'}), 500
+        service_account_path = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if not service_account_path or not os.path.exists(service_account_path):
+            return jsonify({'status': 'error', 'message': f"GOOGLE_SERVICE_ACCOUNT_JSON path is not set or invalid: {service_account_path}"}), 500
+
+        with open(service_account_path) as f:
+            service_account_info = json.load(f)
 
         config = {
-            'serviceAccountContent': json.loads(service_account_json),
+            'serviceAccountContent': service_account_info,
             'vendorDataUrl': os.environ.get('VENDOR_DATA_URL'),
             'vqcDataUrl': os.environ.get('VQC_DATA_URL'),
             'ftDataUrl': os.environ.get('FT_DATA_URL')

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, current_app
 import traceback
-from app.database import supabase
+from app import database
 from app.decorators import token_required
 
 db_bp = Blueprint('db', __name__)
@@ -11,8 +11,11 @@ def create_schema_endpoint(current_user):
     """Endpoint to create the database schema."""
     log = []
     try:
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
         log.append("Dropping existing schema objects if they exist...")
-        supabase.rpc('exec', {'sql': 'DROP TABLE IF EXISTS rings;'}).execute()
+        supabase_client.rpc('exec', {'sql': 'DROP TABLE IF EXISTS rings;'}).execute()
 
         log.append("Creating the 'rings' table...")
         create_table_sql = """
@@ -25,7 +28,7 @@ def create_schema_endpoint(current_user):
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
         """
-        supabase.rpc('exec', {'sql': create_table_sql}).execute()
+        supabase_client.rpc('exec', {'sql': create_table_sql}).execute()
         log.append("Creating indexes...")
         index_statements = [
             "CREATE INDEX idx_serial_number ON rings(serial_number);",
@@ -38,7 +41,7 @@ def create_schema_endpoint(current_user):
         ]
         for statement in index_statements:
             log.append(f"Executing: {statement}")
-            supabase.rpc('exec', {'sql': statement}).execute()
+            supabase_client.rpc('exec', {'sql': statement}).execute()
 
         log.append("Database schema and indexes created successfully.")
         return jsonify(status="success", logs=log)
@@ -52,7 +55,10 @@ def create_schema_endpoint(current_user):
 def clear_database_endpoint(current_user):
     """Endpoint to clear the 'rings' table."""
     try:
-        supabase.rpc('exec', {'sql': 'TRUNCATE TABLE rings RESTART IDENTITY'}).execute()
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        supabase_client.rpc('exec', {'sql': 'TRUNCATE TABLE rings RESTART IDENTITY'}).execute()
         return jsonify(status="success", message="Database 'rings' table has been cleared.")
     except Exception as e:
         current_app.logger.error(f"Database clearing failed: {e}")

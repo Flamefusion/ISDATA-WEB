@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime, timedelta
 
-from app.database import supabase
+from app import database
 from app.decorators import token_required
 
 home_bp = Blueprint('home', __name__)
@@ -11,6 +11,9 @@ home_bp = Blueprint('home', __name__)
 def get_home_summary(current_user):
     """Returns a summary of data for the home screen."""
     try:
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
         start_date_str = request.args.get('startDate')
         end_date_str = request.args.get('endDate')
 
@@ -21,7 +24,7 @@ def get_home_summary(current_user):
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=7)
 
-        response = supabase.rpc('get_home_summary', {
+        response = supabase_client.rpc('get_home_summary', {
             'p_start_date': start_date.isoformat(),
             'p_end_date': end_date.isoformat()
         }).execute()
