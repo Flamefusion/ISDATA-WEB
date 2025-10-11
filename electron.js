@@ -87,12 +87,12 @@ ipcMain.handle('sheets:test', async (event, data) => {
   }
 });
 
-ipcMain.handle('db:connect', async (event, data) => {
+ipcMain.handle('db:connect_supabase', async (event, data) => {
   try {
-    const response = await client.post('http://localhost:5000/api/db/test', data);
+    const response = await client.post('http://localhost:5000/api/db/connect_supabase', data);
     return response.data;
   } catch (error) {
-    console.error('Error in db:connect IPC handler:', error);
+    console.error('Error in db:connect_supabase IPC handler:', error);
     throw error;
   }
 });
