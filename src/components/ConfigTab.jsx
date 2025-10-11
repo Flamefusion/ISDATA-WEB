@@ -126,6 +126,7 @@ const ConfigTab = () => {
     const supabaseConfig = {
       supabaseUrl: config.supabaseUrl,
       supabaseAnonKey: config.supabaseAnonKey,
+      supabaseServiceKey: config.supabaseServiceKey,
     };
 
     try {
@@ -391,6 +392,21 @@ const ConfigTab = () => {
               onChange={(e) => dispatch(updateConfig({ supabaseAnonKey: e.target.value }))} 
               className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
               placeholder="Supabase anonymous key" 
+            />
+          </div>
+          
+          <div className="md:col-span-2 space-y-2">
+            <label htmlFor="supabaseServiceKey" className="block text-sm font-semibold text-gray-700 dark:text-gray-200">
+              Supabase Service Role Key
+            </label>
+            <input 
+              id="supabaseServiceKey"
+              name="supabaseServiceKey"
+              type="password" 
+              value={config.supabaseServiceKey} 
+              onChange={(e) => dispatch(updateConfig({ supabaseServiceKey: e.target.value }))} 
+              className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700/30 bg-white/70 dark:bg-gray-800/90 backdrop-blur-sm focus:ring-2 focus:ring-purple-500 dark:focus:ring-blue-400 transition-all duration-200" 
+              placeholder="Supabase service role key (for admin tasks)" 
             />
           </div>
         </div>
