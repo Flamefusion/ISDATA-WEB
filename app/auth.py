@@ -2,19 +2,16 @@ import time
 import threading
 import hashlib
 from flask import jsonify, session
-import psycopg2
-from .database import check_single_db_connection
+
+from .database import check_supabase_connection
 
 # THIS IS A TEMPORARY AND INSECURE WAY TO STORE USER DATA
 # In a real application, use a database and hashed passwords.
 USER_CREDENTIALS = {
     "testuser": {
         "password": "password",
-        "db_host": "localhost",
-        "db_port": "5432",
-        "db_name": "fqc_rings",
-        "db_user": "flamefusion",
-        "db_password": "0702"
+        "supabase_url": "https://<your-project-id>.supabase.co",
+        "supabase_anon_key": "<your-anon-key>"
     }
 }
 
@@ -23,26 +20,23 @@ class AuthManager:
         self.ping_threads = {}
         self.stop_events = {}
 
-    def _get_db_config_hash(self, db_config):
+    def _get_db_config_hash(self, supabase_config):
         """Creates a unique hash for a database configuration."""
-        config_string = f"{db_config['host']}:{db_config['port']}:{db_config['dbname']}:{db_config['user']}"
+        config_string = f"{supabase_config['supabaseUrl']}"
         return hashlib.md5(config_string.encode()).hexdigest()
 
     def login(self, username, password):
         user_data = USER_CREDENTIALS.get(username)
         if user_data and user_data["password"] == password:
-            db_config = {
-                "host": user_data["db_host"],
-                "port": user_data["db_port"],
-                "dbname": user_data["db_name"],
-                "user": user_data["db_user"],
-                "password": user_data["db_password"]
+            supabase_config = {
+                "supabaseUrl": user_data["supabase_url"],
+                "supabaseAnonKey": user_data["supabase_anon_key"]
             }
             
-            connected, message = check_single_db_connection(**db_config)
+            connected, message = check_supabase_connection(**supabase_config)
             if connected:
-                session['db_config'] = db_config
-                self.start_pinging(db_config)
+                session['supabase_config'] = supabase_config
+                self.start_pinging(supabase_config)
                 return jsonify({"message": "Login successful"}), 200
             else:
                 return jsonify({"message": f"Database connection failed: {message}"}), 500
@@ -54,17 +48,14 @@ class AuthManager:
             self.stop_pinging(db_config)
         return jsonify({"message": "Logout successful"}), 200
 
-    def register(self, username, password, db_host, db_port, db_name, db_user, db_password):
+    def register(self, username, password, supabase_url, supabase_anon_key):
         if username in USER_CREDENTIALS:
             return jsonify({"message": "User already exists"}), 409
 
         USER_CREDENTIALS[username] = {
             "password": password, 
-            "db_host": db_host,
-            "db_port": db_port,
-            "db_name": db_name,
-            "db_user": db_user,
-            "db_password": db_password
+            "supabase_url": supabase_url,
+            "supabase_anon_key": supabase_anon_key
         }
         return jsonify({"message": "User created successfully"}), 201
 
@@ -87,16 +78,15 @@ class AuthManager:
                 del self.ping_threads[db_hash]
             del self.stop_events[db_hash]
 
-    def ping_db_periodically(self, db_config, stop_event):
+    def ping_db_periodically(self, supabase_config, stop_event):
         while not stop_event.is_set():
             try:
-                conn = psycopg2.connect(**db_config)
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT 1")
-                conn.close()
-                print(f"Database ping successful for {db_config['dbname']}.")
+                from .database import get_db_connection
+                db = get_db_connection()
+                db.table('rings').select('id').limit(1).execute()
+                print(f"Database ping successful for {supabase_config['supabaseUrl']}.")
             except Exception as e:
-                print(f"Error pinging database {db_config['dbname']}: {e}")
+                print(f"Error pinging database {supabase_config['supabaseUrl']}: {e}")
             
             # Wait for 3 minutes, but check for stop event every second
             for _ in range(180):
