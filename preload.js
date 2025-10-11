@@ -3,13 +3,16 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Expose a secure API to the renderer process (your React app)
 contextBridge.exposeInMainWorld('api', {
+  // Auth
+  setAuthToken: (token) => ipcRenderer.send('auth:set-token', token),
+  clearAuthToken: () => ipcRenderer.send('auth:clear-token'),
+
   // Config
   saveConfig: (data) => ipcRenderer.invoke('config:save', data),
   loadConfig: () => ipcRenderer.invoke('config:load'),
 
   // The function your React app will call
   testSheetsConnection: (data) => ipcRenderer.invoke('sheets:test', data),
-  connectSupabase: (data) => ipcRenderer.invoke('db:connect_supabase', data),
   createSchema: (data) => ipcRenderer.invoke('db:createSchema', data),
   clearDatabase: (data) => ipcRenderer.invoke('db:clear', data),
   startMigration: (data) => ipcRenderer.send('migration:start', data),
