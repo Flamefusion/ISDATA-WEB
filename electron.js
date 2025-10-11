@@ -5,16 +5,14 @@ const { spawn } = require('child_process');
 const axios = require('axios');
 const { wrapper } = require('axios-cookiejar-support');
 const { CookieJar } = require('tough-cookie');
-require('dotenv').config(); // Load .env file
+require('dotenv').config();
 
 const jar = new CookieJar();
 const client = wrapper(axios.create({ jar }));
 
-let store;
 let backendProcess = null;
-let authToken = null; // Variable to hold the JWT
+let authToken = null;
 
-// Add an Axios interceptor to inject the token
 client.interceptors.request.use(config => {
   if (authToken) {
     config.headers.Authorization = `Bearer ${authToken}`;
@@ -53,53 +51,95 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const Store = (await import('electron-store')).default;
-  store = new Store();
-
   const backendPath = getBackendPath();
-  
-  // Prepare environment for the backend process
-  const backendEnv = {
-    ...process.env,
-    SECRET_KEY: process.env.SECRET_KEY,
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY,
-    SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
-  };
+  const backendEnv = { ...process.env };
 
   backendProcess = spawn(backendPath, [], { env: backendEnv });
 
-  backendProcess.stdout.on('data', (data) => {
-    console.log(`Backend stdout: ${data}`);
-  });
-
-  backendProcess.stderr.on('data', (data) => {
-    console.error(`Backend stderr: ${data}`);
-  });
-
-  backendProcess.on('close', (code) => {
-    console.log(`Backend process exited with code ${code}`);
-  });
+  backendProcess.stdout.on('data', (data) => console.log(`Backend stdout: ${data}`));
+  backendProcess.stderr.on('data', (data) => console.error(`Backend stderr: ${data}`));
+  backendProcess.on('close', (code) => console.log(`Backend process exited with code ${code}`));
 
   createWindow();
 });
 
-// IPC Handlers for Auth
-ipcMain.on('auth:set-token', (event, token) => {
-  authToken = token;
+// --- IPC Handlers ---
+
+// Auth
+icpMain.on('auth:set-token', (event, token) => { authToken = token; });
+icpMain.on('auth:clear-token', () => { authToken = null; });
+
+// DB Schema
+icpMain.handle('db:createSchema', async (event, data) => {
+  const response = await client.post('http://localhost:5000/api/db/schema', data);
+  return response.data;
 });
 
-ipcMain.on('auth:clear-token', () => {
-  authToken = null;
+icpMain.handle('db:clear', async (event, data) => {
+  const response = await client.delete('http://localhost:5000/api/db/clear', { data });
+  return response.data;
 });
 
-// IPC Handlers for configuration
-ipcMain.handle('config:save', (event, config) => {
-  store.set('dbConfig', config);
+// Migration
+icpMain.on('migration:start', async (event) => {
+  try {
+    const response = await client.post('http://localhost:5000/api/migrate', {}, { responseType: 'stream' });
+    response.data.on('data', (chunk) => {
+      const message = chunk.toString();
+      const lines = message.split('\n').filter(line => line.startsWith('data: '));
+      for (const line of lines) {
+        event.sender.send('migration:log', { type: 'log', message: line.replace('data: ', '') });
+      }
+    });
+    response.data.on('end', () => {
+      event.sender.send('migration:log', { type: 'complete', message: 'Migration stream complete.' });
+    });
+  } catch (error) {
+    event.sender.send('migration:log', { type: 'error', message: `Migration failed: ${error.message}` });
+  }
 });
 
-ipcMain.handle('config:load', (event) => {
-  return store.get('dbConfig');
+// Reports & Rejection Trends
+icpMain.handle('rejection:loadData', async (event, data) => {
+  const response = await client.post('http://localhost:5000/api/rejection_trends', data);
+  return response.data;
 });
 
-// ... (rest of the IPC handlers)
+icpMain.handle('rejection:loadVendors', async () => {
+  const response = await client.get('http://localhost:5000/api/vendors');
+  return response.data;
+});
+
+icpMain.handle('rejection:exportTrends', async (event, data) => {
+    const response = await client.post('http://localhost:5000/api/rejection_trends/export', data, { responseType: 'arraybuffer' });
+    return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: `rejection_trends.csv` };
+});
+
+// Search
+icpMain.handle('search:loadFilterOptions', async () => {
+  const response = await client.get('http://localhost:5000/api/search/filters');
+  return response.data;
+});
+
+icpMain.handle('search:performSearch', async (event, data) => {
+  const response = await client.post('http://localhost:5000/api/search', data);
+  return response.data;
+});
+
+icpMain.handle('search:exportSearchResults', async (event, data) => {
+    const response = await client.post('http://localhost:5000/api/search/export', data, { responseType: 'arraybuffer' });
+    return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: 'search_results.csv' };
+});
+
+// App lifecycle
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+  if (backendProcess) backendProcess.kill();
+});
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+});
