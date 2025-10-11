@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify, Response, current_app
 import pandas as pd
 import gspread
 import time
+import os
+import json
 from google.oauth2.service_account import Credentials
 
 from app.database import supabase
@@ -25,8 +27,7 @@ def get_data(current_user):
 @token_required
 def migrate(current_user):
     """Migrate data from Google Sheets to database with streaming response."""
-    config = request.json
-
+    
     def generate():
         def log_callback(message):
             yield f"data: {message}\n\n"
@@ -34,15 +35,30 @@ def migrate(current_user):
         # 1. Connect to Google API
         try:
             yield from log_callback("Connecting to Google API...")
+            service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+            if not service_account_json:
+                yield from log_callback("ERROR: GOOGLE_SERVICE_ACCOUNT_JSON not set in environment.")
+                return
+
+            service_account_info = json.loads(service_account_json)
             scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-            creds = Credentials.from_service_account_info(config.get('serviceAccountContent'), scopes=scopes)
+            creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
             gc = gspread.authorize(creds)
             yield from log_callback("Google API connection successful.")
+
+            # Construct config for data loading from environment variables
+            config = {
+                'vendorDataUrl': os.environ.get('VENDOR_DATA_URL'),
+                'vqcDataUrl': os.environ.get('VQC_DATA_URL'),
+                'ftDataUrl': os.environ.get('FT_DATA_URL')
+            }
+
         except Exception as e:
             yield from log_callback(f"ERROR: Google API connection failed: {e}")
             return
 
         # 2. Load and Merge Data
+        # ... (The rest of the function remains the same as it uses the constructed config)
         merged_data = []
         try:
             yield from log_callback("Starting parallel data loading from Google Sheets...")
@@ -115,11 +131,23 @@ def migrate(current_user):
 @data_bp.route('/test_sheets_connection', methods=['POST'])
 @token_required
 def test_sheets_connection_endpoint(current_user):
-    """Test connection to Google Sheets."""
-    config = request.json
-    result = test_sheets_connection(config)
-    
-    if result['status'] == 'success':
-        return jsonify(result)
-    else:
-        return jsonify(result), 400 if 'No Google Sheet URLs' in result['message'] else 500
+    """Test connection to Google Sheets using environment variables."""
+    try:
+        service_account_json = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+        if not service_account_json:
+            return jsonify({'status': 'error', 'message': 'GOOGLE_SERVICE_ACCOUNT_JSON not set.'}), 500
+
+        config = {
+            'serviceAccountContent': json.loads(service_account_json),
+            'vendorDataUrl': os.environ.get('VENDOR_DATA_URL'),
+            'vqcDataUrl': os.environ.get('VQC_DATA_URL'),
+            'ftDataUrl': os.environ.get('FT_DATA_URL')
+        }
+        result = test_sheets_connection(config)
+        
+        if result['status'] == 'success':
+            return jsonify(result)
+        else:
+            return jsonify(result), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
