@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify, Response, current_app
-import io
-import psycopg2
+from flask import Blueprint, request, jsonify, Response, current_app, session
 import pandas as pd
 import gspread
+import time
 from google.oauth2.service_account import Credentials
+from supabase import create_client
+
 from app.database import get_db_connection
 from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection
 
@@ -24,10 +25,10 @@ def get_data():
 def migrate():
     """Migrate data from Google Sheets to database with streaming response."""
     config = request.json
-    
-    def generate():
+    supabase_config = session.get('supabase_config', {})
+
+    def generate(supa_config):
         def log_callback(message):
-            # This helper is still useful for streaming from the main thread
             yield f"data: {message}\n\n"
 
         # 1. Connect to Google API
@@ -46,16 +47,11 @@ def migrate():
         try:
             yield from log_callback("Starting parallel data loading from Google Sheets...")
             step7_data, vqc_data, ft_data, load_logs = load_sheets_data_parallel(config, gc)
-
-            # Stream the logs that were generated in the background threads
             for log_msg in load_logs:
                 yield from log_callback(log_msg)
 
             yield from log_callback("Parallel data loading complete. Starting merge...")
-            # Capture the merge logs
             merged_data, merge_logs = merge_ring_data_fast(step7_data, vqc_data, ft_data)
-
-             # Stream the logs from the merge process
             for log_msg in merge_logs:
                 yield from log_callback(log_msg)
            
@@ -70,86 +66,60 @@ def migrate():
             return
 
         # 3. Migrate Data
-        conn = None
         try:
-            conn = get_db_connection()
-            with conn.cursor() as cursor:
-                yield from log_callback("Creating temporary table for bulk data loading...")
-                cursor.execute("""
-                    CREATE TEMP TABLE rings_temp (
-                        date DATE, mo_number VARCHAR(50), vendor VARCHAR(50), serial_number VARCHAR(100) UNIQUE,
-                        ring_size VARCHAR(100), sku VARCHAR(50), pcb VARCHAR(50), qc_code VARCHAR(50), qc_person VARCHAR(100),
-                        vqc_status VARCHAR(100), vqc_reason TEXT, ft_status VARCHAR(100), ft_reason TEXT
-                    ) ON COMMIT DROP;
-                """)
+            url = supa_config.get("supabaseUrl")
+            key = supa_config.get("supabaseServiceKey")
 
-                yield from log_callback("Preparing data for bulk COPY...")
-                string_buffer = io.StringIO()
-                cols = ['date', 'mo_number', 'vendor', 'serial_number', 'ring_size', 'sku', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'vqc_reason', 'ft_status', 'ft_reason']
-                null_identifier = '\\N'
+            if not all([url, key]):
+                yield from log_callback("ERROR: Supabase URL or Service Key not configured for migration.")
+                return
 
-                for record in merged_data:
-                    row_data = []
-                    for col in cols:
-                        value = record.get(col)
-                        is_missing = pd.isna(value) or str(value).strip() == ''
+            db = create_client(url, key)
 
-                        if col == 'date':
-                            if is_missing:
-                                clean_value = null_identifier
-                            else:
-                                try:
-                                    clean_value = pd.to_datetime(value).date().isoformat()
-                                except (ValueError, TypeError):
-                                    clean_value = null_identifier
+            yield from log_callback(f"Starting to upsert {len(merged_data)} records in batches...")
+            
+            for record in merged_data:
+                for key, value in record.items():
+                    if value == '':
+                        record[key] = None
+                if 'date' in record and record['date'] is not None:
+                    try:
+                        record['date'] = pd.to_datetime(record['date']).date().isoformat()
+                    except (ValueError, TypeError):
+                        record['date'] = None
+            
+            batch_size = 5000
+            max_retries = 3
+            retry_delay = 5
+            total_records = len(merged_data)
+            num_of_batches = (total_records + batch_size - 1) // batch_size
+
+            for i in range(0, total_records, batch_size):
+                batch = merged_data[i:i + batch_size]
+                current_batch_num = i//batch_size + 1
+                
+                for attempt in range(max_retries):
+                    try:
+                        yield from log_callback(f"Upserting batch {current_batch_num}/{num_of_batches} (attempt {attempt + 1}/{max_retries})...")
+                        db.from_('rings').upsert(batch, on_conflict='serial_number').execute()
+                        yield from log_callback(f"Batch {current_batch_num} successful.")
+                        break
+                    except Exception as e:
+                        yield from log_callback(f"ERROR in batch {current_batch_num}: {e}")
+                        if attempt < max_retries - 1:
+                            yield from log_callback(f"Retrying in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
                         else:
-                            if is_missing:
-                                clean_value = ''
-                            else:
-                                clean_value = str(value).replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
-                        
-                        row_data.append(clean_value)
-                    
-                    string_buffer.write('\t'.join(row_data) + '\n')
-                
-                string_buffer.seek(0)
-                
-                yield from log_callback(f"Copying {len(merged_data)} records to DB...")
-                cursor.copy_expert(f"COPY rings_temp({','.join(cols)}) FROM STDIN WITH (FORMAT text, NULL '{null_identifier}')", string_buffer)
+                            yield from log_callback(f"Batch {current_batch_num} failed after {max_retries} attempts. Aborting migration.")
+                            raise e
 
-                yield from log_callback("Updating existing records...")
-                update_sql = """
-                UPDATE rings r SET
-                    date = t.date, mo_number = t.mo_number, vendor = t.vendor, ring_size = t.ring_size,
-                    sku = t.sku, pcb = t.pcb, qc_code = t.qc_code, qc_person = t.qc_person, 
-                    vqc_status = t.vqc_status, vqc_reason = t.vqc_reason,
-                    ft_status = t.ft_status, ft_reason = t.ft_reason, updated_at = CURRENT_TIMESTAMP
-                FROM rings_temp t
-                WHERE r.serial_number = t.serial_number;
-                """
-                cursor.execute(update_sql)
-                yield from log_callback(f"{cursor.rowcount} existing records updated.")
-
-                yield from log_callback("Inserting new records...")
-                insert_sql = """
-                INSERT INTO rings (date, mo_number, vendor, serial_number, ring_size, sku, pcb, qc_code, qc_person, vqc_status, vqc_reason, ft_status, ft_reason)
-                SELECT t.date, t.mo_number, t.vendor, t.serial_number, t.ring_size, t.sku, t.pcb, t.qc_code, t.qc_person, t.vqc_status, t.vqc_reason, t.ft_status, t.ft_reason
-                FROM rings_temp t
-                LEFT JOIN rings r ON t.serial_number = r.serial_number
-                WHERE r.serial_number IS NULL;
-                """
-                cursor.execute(insert_sql)
-                yield from log_callback(f"{cursor.rowcount} new records inserted.")
-
-            conn.commit()
+            yield from log_callback("All batches upserted successfully.")
             yield from log_callback("Migration completed successfully!")
 
-        except (psycopg2.Error, Exception) as e:
-            if conn:
-                conn.rollback()
-            yield from log_callback(f"ERROR: High-speed migration failed: {e}")
+        except Exception as e:
+            yield from log_callback(f"ERROR: Database migration failed: {e}")
 
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(generate(supabase_config), mimetype='text/event-stream')
 
 @data_bp.route('/test_sheets_connection', methods=['POST'])
 def test_sheets_connection_endpoint():
