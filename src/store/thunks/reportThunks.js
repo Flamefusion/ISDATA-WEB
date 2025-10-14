@@ -4,19 +4,27 @@ import { showAlert } from '../slices/uiSlice';
 
 export const loadReport = createAsyncThunk(
   'report/loadReport',
-  async ({ selectedDate, selectedVendor }, { dispatch, rejectWithValue }) => {
+  async ({ selectedDate, selectedVendor }, { dispatch, getState, rejectWithValue }) => {
     try {
+      const { session } = getState().auth;
+      if (!session || !session.access_token) {
+        return rejectWithValue('Authentication token is missing');
+      }
+
       const response = await fetch('http://localhost:5000/api/daily_report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor }),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to load report');
       }
-      
+
       const data = await response.json();
       dispatch(showAlert({ message: 'Report generated successfully', type: 'success' }));
       return data;
@@ -29,9 +37,20 @@ export const loadReport = createAsyncThunk(
 
 export const loadVendors = createAsyncThunk(
   'report/loadVendors',
-  async (_, { rejectWithValue }) => {
+  async (_, { getState, rejectWithValue }) => {
     try {
-      const response = await fetch('http://localhost:5000/api/vendors');
+      const { session } = getState().auth;
+      if (!session || !session.access_token) {
+        throw new Error('Token is missing');
+      }
+
+      const response = await fetch('http://localhost:5000/api/vendors', {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to load vendors');
@@ -47,11 +66,19 @@ export const loadVendors = createAsyncThunk(
 
 export const exportReport = createAsyncThunk(
   'report/exportReport',
-  async ({ selectedDate, selectedVendor, format }, { dispatch, rejectWithValue }) => {
+  async ({ selectedDate, selectedVendor, format }, { dispatch, getState, rejectWithValue }) => {
     try {
+      const { session } = getState().auth;
+      if (!session || !session.access_token) {
+        return rejectWithValue('Authentication token is missing');
+      }
+
       const response = await fetch('http://localhost:5000/api/export_daily_report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ date: selectedDate, vendor: selectedVendor, format }),
       });
 
