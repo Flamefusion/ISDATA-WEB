@@ -41,12 +41,19 @@ def get_daily_report(current_user):
             'p_selected_date': selected_date,
             'p_selected_vendor': selected_vendor
         }).execute()
+
+        # The API client may return error details in the `data` field instead of raising an exception.
+        if isinstance(response.data, dict) and response.data.get('code'):
+            raise Exception(f"Database RPC error: {response.data.get('message', 'No message')}")
         
-        report_data = response.data[0] if (response.data and len(response.data) > 0) else {}
+        report_data = response.data if response.data else {}
         return jsonify(report_data)
-        
+
+    except KeyError:
+        current_app.logger.error(f"Caught KeyError processing RPC response. This indicates a database error. Offending response.data: {response.data}")
+        return jsonify({'error': 'Failed to process database response.'}), 500
     except Exception as e:
-        current_app.logger.error(f"Error generating daily report: {e}")
+        current_app.logger.error(f"Error generating daily report: {repr(e)}")
         return jsonify({'error': f'Failed to generate report: {str(e)}'}), 500
 
 @report_bp.route('/export_daily_report', methods=['POST'])
