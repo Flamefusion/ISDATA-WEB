@@ -12,3 +12,4 @@ python-dotenv
 openpyxl
 Werkzeug
 pyinstaller
+waitress
