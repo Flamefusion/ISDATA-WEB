@@ -141,11 +141,15 @@ def get_rejection_trends(current_user):
             'p_rejection_stage': rejection_stage_filter
         }).execute()
 
-        trends_data = response.data[0] if (response.data and len(response.data) > 0) else {}
+
+        if isinstance(response.data, dict) and response.data.get('code'):
+            raise Exception(f"Database RPC error: {response.data.get('message', 'No message')}")
+
+        trends_data = response.data if response.data else {}
         return jsonify(trends_data)
             
     except Exception as e:
-        current_app.logger.error(f"Error generating rejection trends: {e}", exc_info=True)
+        current_app.logger.error(f"Error generating rejection trends: {repr(e)}", exc_info=True)
         return jsonify({'error': f'Failed to generate rejection trends: {str(e)}'}), 500
 
 @report_bp.route('/rejection_trends/export', methods=['POST'])
@@ -166,19 +170,37 @@ def export_rejection_trends(current_user):
         supabase_client = database.supabase
         if supabase_client is None:
             raise Exception("Supabase client is not initialized.")
-        response = supabase_client.rpc('get_rejection_trends_export', {
+        
+        # Call the main RPC function to get the processed data
+        response = supabase_client.rpc('get_rejection_trends', {
             'p_date_from': date_from,
             'p_date_to': date_to,
             'p_vendor': selected_vendor,
             'p_rejection_stage': rejection_stage
         }).execute()
 
-        export_data = response.data if response.data else []
+        if isinstance(response.data, dict) and response.data.get('code'):
+            raise Exception(f"Database RPC error: {response.data.get('message', 'No message')}")
+
+        trends_data = response.data
         
-        if not export_data:
+        if not trends_data or not trends_data.get('rejectionData'):
             return Response("", mimetype="text/csv")
 
-        df = pd.DataFrame(export_data)
+        rejection_data = trends_data['rejectionData']
+        date_range = trends_data['summary']['dateRange']
+
+        # Prepare data for DataFrame
+        header = ['Stage', 'Rejection Type'] + [pd.to_datetime(date).strftime('%d-%b-%Y') for date in date_range] + ['Total']
+        rows = []
+        for item in rejection_data:
+            row = [item['stage'], item['rejection']]
+            for date in date_range:
+                row.append(item['dateWiseData'].get(date, 0))
+            row.append(item['totals']['total'])
+            rows.append(row)
+
+        df = pd.DataFrame(rows, columns=header)
 
         if export_format.lower() == 'csv':
             output = io.StringIO()
