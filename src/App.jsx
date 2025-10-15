@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home } from 'lucide-react';
+import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home, Loader } from 'lucide-react';
 import { Routes, Route, useLocation, Link } from 'react-router-dom';
 
 import { store } from './store/store';
@@ -17,13 +17,13 @@ import { setSession } from './store/slices/authSlice';
 import { supabase } from './supabaseClient';
 
 // Components
-import HomeTab from './components/HomeTab';
-import ConfigTab from './components/ConfigTab';
-import MigrationTab from './components/MigrationTab';
-import PreviewTab from './components/PreviewTab';
-import ReportTab from './components/ReportTab';
-import SearchTab from './components/SearchTab';
-import RejectionTrendsTab from './components/RejectionTrendsTab';
+const HomeTab = React.lazy(() => import('./components/HomeTab'));
+const ConfigTab = React.lazy(() => import('./components/ConfigTab'));
+const MigrationTab = React.lazy(() => import('./components/MigrationTab'));
+const PreviewTab = React.lazy(() => import('./components/PreviewTab'));
+const ReportTab = React.lazy(() => import('./components/ReportTab'));
+const SearchTab = React.lazy(() => import('./components/SearchTab'));
+const RejectionTrendsTab = React.lazy(() => import('./components/RejectionTrendsTab'));
 import SettingsPanel from './components/SettingsPanel';
 import CustomAlert from './components/CustomAlert';
 import Login from './components/Login';
@@ -207,11 +207,22 @@ const AppContent = () => {
               },
             }}
           >
-            <Routes location={location}>
-              {tabs.map(tab => (
-                <Route key={tab.id} path={tab.path} element={<tab.component />} />
-              ))}
-            </Routes>
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-16">
+                <div className="text-center">
+                  <Loader className="w-8 h-8 animate-spin text-accent-primary mx-auto mb-4" />
+                  <p className="text-lg font-semibold">
+                    Loading Page...
+                  </p>
+                </div>
+              </div>
+            }>
+              <Routes location={location}>
+                {tabs.map(tab => (
+                  <Route key={tab.id} path={tab.path} element={<tab.component />} />
+                ))}
+              </Routes>
+            </React.Suspense>
           </motion.main>
         </AnimatePresence>
       </div>
