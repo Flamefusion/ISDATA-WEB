@@ -100,7 +100,7 @@ def migrate(current_user):
                     except (ValueError, TypeError):
                         record['date'] = None
             
-            batch_size = 5000
+            batch_size = 10000
             max_retries = 3
             retry_delay = 5
             total_records = len(merged_data)
