@@ -44,6 +44,9 @@ const rejectionTrendsSlice = createSlice({
         state.trendsData = action.payload.summary;
         // Update date range from payload if needed
         if (action.payload.dateRange) {
+          if (!state.trendsData) {
+            state.trendsData = {};
+          }
           state.trendsData.dateRange = action.payload.dateRange;
         }
       })

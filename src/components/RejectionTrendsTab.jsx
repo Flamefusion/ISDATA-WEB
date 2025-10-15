@@ -285,7 +285,7 @@ const RejectionTrendsTab = () => {
             </div>
           </motion.div>
 
-          {Object.entries(trendsData.stageWiseTotals).map(([stage, count]) => (
+          {trendsData.stageWiseTotals && Object.entries(trendsData.stageWiseTotals).map(([stage, count]) => (
             <motion.div
               key={stage}
               whileHover={{ scale: 1.02 }}
