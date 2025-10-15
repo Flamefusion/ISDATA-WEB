@@ -16,6 +16,7 @@ def create_schema_endpoint(current_user):
             raise Exception("Supabase client is not initialized.")
         log.append("Dropping existing schema objects if they exist...")
         supabase_client.rpc('exec', {'sql': 'DROP TABLE IF EXISTS rings;'}).execute()
+        supabase_client.rpc('exec', {'sql': 'DROP TABLE IF EXISTS migration_history;'}).execute()
 
         log.append("Creating the 'rings' table...")
         create_table_sql = """
@@ -42,6 +43,11 @@ def create_schema_endpoint(current_user):
         for statement in index_statements:
             log.append(f"Executing: {statement}")
             supabase_client.rpc('exec', {'sql': statement}).execute()
+
+        log.append("Creating the 'migration_history' table...")
+        with open('sql functions/migration_history.sql', 'r') as f:
+            migration_history_sql = f.read()
+        supabase_client.rpc('exec', {'sql': migration_history_sql}).execute()
 
         log.append("Database schema and indexes created successfully.")
         return jsonify(status="success", logs=log)

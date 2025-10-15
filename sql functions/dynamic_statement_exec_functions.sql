@@ -1,8 +1,6 @@
-CREATE OR REPLACE FUNCTION exec(sql TEXT)
-    RETURNS void
-    LANGUAGE plpgsql
-    SECURITY DEFINER AS $$
-    BEGIN
-      EXECUTE sql;
-    END;
-    $$;
+CREATE OR REPLACE FUNCTION execute_sql(sql TEXT)
+RETURNS VOID AS $$
+BEGIN
+    EXECUTE sql;
+END;
+$$ LANGUAGE plpgsql;

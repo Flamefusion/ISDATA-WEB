@@ -8,9 +8,20 @@ from google.oauth2.service_account import Credentials
 
 from app import database
 from app.decorators import token_required
-from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection
+from app.data_handler import load_sheets_data_parallel, merge_ring_data_fast, test_sheets_connection, get_migration_history, add_migration_history
 
 data_bp = Blueprint('data', __name__)
+
+@data_bp.route('/migration_history', methods=['GET'])
+@token_required
+def migration_history(current_user):
+    """Get migration history from the database."""
+    try:
+        history_data = get_migration_history()
+        return jsonify(history_data)
+    except Exception as e:
+        current_app.logger.error(f"Error fetching migration history: {e}")
+        return jsonify(error=str(e)), 500
 
 @data_bp.route('/data', methods=['GET'])
 @token_required
@@ -129,6 +140,25 @@ def migrate(current_user):
                             raise e
 
             yield from log_callback("All batches upserted successfully.")
+
+            # After successful migration, add to history
+            try:
+                user_email = current_user.email  # Assuming email is in the token
+                
+                # In a real scenario, you would get these from the upsert results
+                # For now, we'll use placeholders.
+                # We need to determine how to get the actual inserted vs. updated counts.
+                # This might require a more advanced query or processing the results from the upsert.
+                # For this implementation, we'll assume all are inserts.
+                updated_qty = 0  # Placeholder
+                inserted_qty = total_records # Placeholder, using total records
+                batches_sent = num_of_batches
+                
+                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent)
+                yield from log_callback("Migration history recorded.")
+            except Exception as e:
+                yield from log_callback(f"ERROR: Failed to record migration history: {e}")
+
             yield from log_callback("Migration completed successfully!")
 
         except Exception as e:
