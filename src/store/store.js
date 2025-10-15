@@ -1,4 +1,3 @@
-// src/store/store.js - COMPLETE VERSION
 import { configureStore } from '@reduxjs/toolkit';
 import configReducer from './slices/configSlice.js';
 import dataReducer from './slices/dataSlice.js';
@@ -9,6 +8,7 @@ import rejectionTrendsReducer from './slices/rejectionTrendsSlice.js';
 import uiReducer from './slices/uiSlice.js';
 import homeReducer from './slices/homeSlice.js';
 import authReducer from './slices/authSlice.js';
+import migrationHistoryReducer from './slices/migrationHistorySlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -21,6 +21,7 @@ export const store = configureStore({
     ui: uiReducer,
     home: homeReducer,
     auth: authReducer,
+    migrationHistory: migrationHistoryReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

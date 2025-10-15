@@ -2,6 +2,48 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from app import database
+
+def get_migration_history():
+    """Fetches migration history from the database."""
+    try:
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        
+        response = supabase_client.from_('migration_history').select('*').order('migration_time', desc=True).execute()
+        
+        # Compatibility for different Supabase library versions
+        if hasattr(response, 'data'):
+            return response.data
+        else:
+            return response.get('data', [])
+
+    except Exception as e:
+        # Log the exception or handle it as needed
+        print(f"Error fetching migration history: {e}")
+        raise
+
+def add_migration_history(updated_qty, inserted_qty, user_email, batches_sent):
+    """Adds a new record to the migration history."""
+    try:
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        
+        response = supabase_client.from_('migration_history').insert({
+            'updated_qty': updated_qty,
+            'inserted_qty': inserted_qty,
+            'user_email': user_email,
+            'batches_sent': batches_sent
+        }).execute()
+        
+        # Optional: Check for errors in the response
+        if hasattr(response, 'error') and response.error:
+            print(f"Error adding migration history: {response.error.message}")
+
+    except Exception as e:
+        print(f"Error adding migration history: {e}")
 
 def load_sheet_data(sheet_type, config, gc):
     """Load data from Google Sheets based on sheet type and return logs."""

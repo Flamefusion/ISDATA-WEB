@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Loader } from 'lucide-react';
+import { Play, Loader, RefreshCw } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { startMigration } from '../store/thunks/migrationThunks';
+import { fetchMigrationHistory } from '../store/thunks/migrationHistoryThunks';
 
 // Animation variants
 const fadeInUp = {
@@ -12,12 +13,71 @@ const fadeInUp = {
   transition: { duration: 0.3 }
 };
 
+const MigrationHistory = () => {
+  const dispatch = useDispatch();
+  const { history, loading, error } = useSelector((state) => state.migrationHistory);
+
+  useEffect(() => {
+    dispatch(fetchMigrationHistory());
+  }, [dispatch]);
+
+  const handleRefresh = () => {
+    dispatch(fetchMigrationHistory());
+  };
+
+  return (
+    <motion.div {...fadeInUp} className="mt-8">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Migration History</h3>
+        <motion.button
+          whileHover={{ scale: 1.05, rotate: 90 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={handleRefresh}
+          disabled={loading}
+          className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 disabled:opacity-50"
+        >
+          <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+        </motion.button>
+      </div>
+      <div className="bg-white dark:bg-black/90 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30 shadow-2xl dark:shadow-black/50">
+        {loading && <p>Loading history...</p>}
+        {error && <p className="text-red-500">Error: {error}</p>}
+        {!loading && !error && (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Inserted</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Updated</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Batches</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-black/90 divide-y divide-gray-200 dark:divide-gray-700">
+                {history.map((item) => (
+                  <motion.tr key={item.id} {...fadeInUp}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{new Date(item.migration_time).toLocaleString()}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.user_email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.inserted_qty}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.updated_qty}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.batches_sent}</td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 const MigrationTab = () => {
   const dispatch = useDispatch();
   const { migrationProgress, migrationLog, isRunning, error } = useSelector((state) => state.migration);
 
   const handleStartMigration = () => {
-    // No longer needs to pass config, backend handles it
     dispatch(startMigration());
   };
 
@@ -136,6 +196,7 @@ const MigrationTab = () => {
           </div>
         </motion.div>
       )}
+      <MigrationHistory />
     </motion.div>
   );
 };
