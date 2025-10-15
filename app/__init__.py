@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 def create_app():
     """Application factory pattern."""
+    load_dotenv()
     # Create Flask app
     app = Flask(__name__)
     secret_key = os.environ.get('SECRET_KEY')
