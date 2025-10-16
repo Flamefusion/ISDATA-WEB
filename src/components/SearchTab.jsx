@@ -6,12 +6,15 @@ import {
   FileText, 
   Search, 
   Download, 
-  Loader 
+  Loader, 
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { 
   updateSearchFilters,
   clearSearchFilters,
+  setCurrentPage
 } from '../store/slices/searchSlice';
 import { 
   performSearch, 
@@ -35,8 +38,11 @@ const SearchTab = () => {
     searchResults, 
     filterOptions, 
     isLoading, 
-    error 
+    error, 
+    currentPage
   } = useSelector((state) => state.search);
+
+  const ITEMS_PER_PAGE = 200;
 
   useEffect(() => {
     dispatch(loadFilterOptions());
@@ -56,6 +62,11 @@ const SearchTab = () => {
     }
   };
 
+  const totalPages = Math.ceil(searchResults.length / ITEMS_PER_PAGE);
+  const currentItems = searchResults.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <motion.div {...fadeInUp} className="space-y-6">
@@ -192,10 +203,35 @@ const SearchTab = () => {
           animate={{ opacity: 1, y: 0 }} 
           className="bg-white dark:bg-black/90 rounded-2xl border border-gray-200 dark:border-gray-700/30 overflow-hidden shadow-2xl dark:shadow-black/50"
         >
-          <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-black dark:to-gray-900/20 border-b border-gray-200 dark:border-gray-700/30">
+          <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-black dark:to-gray-900/20 border-b border-gray-200 dark:border-gray-700/30 flex justify-between items-center">
             <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
               Search Results ({searchResults.length} found)
             </h3>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => dispatch(setCurrentPage(currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </motion.button>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => dispatch(setCurrentPage(currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </motion.button>
+              </div>
+            )}
           </div>
 
           <div className="overflow-auto max-h-96">
@@ -213,7 +249,7 @@ const SearchTab = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700/30">
-                {searchResults.map((row, index) => (
+                {currentItems.map((row, index) => (
                   <motion.tr 
                     key={index} 
                     initial={{ opacity: 0, x: -20 }} 

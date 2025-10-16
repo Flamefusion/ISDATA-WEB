@@ -18,7 +18,8 @@ def _prepare_filters(filters):
         'p_qcpersons': filters.get('qcperson'),
         'p_vqc_statuses': filters.get('vqcStatus'),
         'p_ft_statuses': filters.get('ftStatus'),
-        'p_rejection_reasons': filters.get('rejectionReason')
+        'p_rejection_reasons': filters.get('rejectionReason'),
+        'p_limit': filters.get('limit', 100000)
     }
     
     if filters.get('serialNumbers'):

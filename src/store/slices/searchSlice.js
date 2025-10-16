@@ -29,6 +29,7 @@ const initialState = {
   },
   isLoading: false,
   error: null,
+  currentPage: 1,
 };
 
 const searchSlice = createSlice({
@@ -42,6 +43,10 @@ const searchSlice = createSlice({
       state.searchFilters = initialSearchFilters;
       state.searchResults = [];
       state.error = null;
+      state.currentPage = 1;
+    },
+    setCurrentPage: (state, action) => {
+      state.currentPage = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -53,6 +58,7 @@ const searchSlice = createSlice({
       .addCase(performSearch.fulfilled, (state, action) => {
         state.isLoading = false;
         state.searchResults = action.payload;
+        state.currentPage = 1;
       })
       .addCase(performSearch.rejected, (state, action) => {
         state.isLoading = false;
@@ -64,5 +70,5 @@ const searchSlice = createSlice({
   },
 });
 
-export const { updateSearchFilters, clearSearchFilters } = searchSlice.actions;
+export const { updateSearchFilters, clearSearchFilters, setCurrentPage } = searchSlice.actions;
 export default searchSlice.reducer;
