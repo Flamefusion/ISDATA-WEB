@@ -108,82 +108,83 @@ def find_column(df, patterns):
 def merge_ring_data_fast(step7_data, vqc_data, ft_data):
     """Merge ring data from different sources and return logs."""
     logs = []
-    if not step7_data:
-        return [], ["No Step 7 data provided to merge."]
 
-    logs.append("Reshaping main vendor data...")
-
-    df_step7 = pd.DataFrame(step7_data)
-    vendor_mappings = {
-        '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
-        'IHC': {'serial': 'IHC', 'mo': 'IHC MO', 'sku': 'IHC SKU', 'size': 'IHC SIZE'},
-        'MAKENICA': {'serial': 'MAKENICA', 'mo': 'MK MO', 'sku': 'MAKENICA SKU', 'size': 'MAKENICA SIZE'}
-    }
-    all_vendor_dfs = []
-    date_col = find_column(df_step7, ['logged_timestamp', 'timestamp', 'date'])
-    
-    for vendor, patterns in vendor_mappings.items():
-        serial_col = find_column(df_step7, patterns['serial'])
-        if not serial_col:
-            continue
-        mo_col = find_column(df_step7, patterns['mo'])
-        sku_col = find_column(df_step7, patterns['sku'])
-        size_col = find_column(df_step7, patterns['size'])
-        
-        cols_to_keep = {
-            date_col: 'date',
-            serial_col: 'serial_number',
-            mo_col: 'mo_number',
-            sku_col: 'sku',
-            size_col: 'ring_size'
+    # Process step7 data
+    df_main = pd.DataFrame()
+    if step7_data:
+        logs.append("Reshaping main vendor data...")
+        df_step7 = pd.DataFrame(step7_data)
+        vendor_mappings = {
+            '3DE TECH': {'serial': 'UID', 'mo': '3DE MO', 'sku': 'SKU', 'size': 'SIZE'},
+            'IHC': {'serial': 'IHC', 'mo': 'IHC MO', 'sku': 'IHC SKU', 'size': 'IHC SIZE'},
+            'MAKENICA': {'serial': 'MAKENICA', 'mo': 'MK MO', 'sku': 'MAKENICA SKU', 'size': 'MAKENICA SIZE'}
         }
-        cols_to_keep = {k: v for k, v in cols_to_keep.items() if k is not None and k in df_step7.columns}
+        all_vendor_dfs = []
+        date_col = find_column(df_step7, ['logged_timestamp', 'timestamp', 'date'])
         
-        vendor_df = df_step7[list(cols_to_keep.keys())].copy()
-        vendor_df.rename(columns=cols_to_keep, inplace=True)
-        vendor_df['vendor'] = vendor
+        for vendor, patterns in vendor_mappings.items():
+            serial_col = find_column(df_step7, patterns['serial'])
+            if not serial_col:
+                continue
+            mo_col = find_column(df_step7, patterns['mo'])
+            sku_col = find_column(df_step7, patterns['sku'])
+            size_col = find_column(df_step7, patterns['size'])
+            
+            cols_to_keep = {
+                date_col: 'date',
+                serial_col: 'serial_number',
+                mo_col: 'mo_number',
+                sku_col: 'sku',
+                size_col: 'ring_size'
+            }
+            cols_to_keep = {k: v for k, v in cols_to_keep.items() if k is not None and k in df_step7.columns}
+            
+            vendor_df = df_step7[list(cols_to_keep.keys())].copy()
+            vendor_df.rename(columns=cols_to_keep, inplace=True)
+            vendor_df['vendor'] = vendor
+            
+            if 'serial_number' in vendor_df.columns:
+                vendor_df.dropna(subset=['serial_number'], inplace=True)
+                vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip().str.upper()
+                all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
         
-        if 'serial_number' in vendor_df.columns:
-            vendor_df.dropna(subset=['serial_number'], inplace=True)
-            vendor_df['serial_number'] = vendor_df['serial_number'].astype(str).str.strip().str.upper()
-            all_vendor_dfs.append(vendor_df[vendor_df['serial_number'] != ''])
-        else:
-            logs.append(f"WARNING: 'serial_number' column not found for vendor {vendor}. Skipping this vendor's data.")
-    
-    if not all_vendor_dfs:
-        raise ValueError("Could not process any vendor data from Step 7.")
-    
-    df_main = pd.concat(all_vendor_dfs, ignore_index=True)
-    logs.append(f"Reshaped into {len(df_main)} total records.")
+        if all_vendor_dfs:
+            df_main = pd.concat(all_vendor_dfs, ignore_index=True)
+            logs.append(f"Reshaped into {len(df_main)} total records from Step 7.")
 
-    logs.append("Preparing VQC and FT data...")
-    all_vqc_dfs = [pd.DataFrame(data).assign(vendor=vendor) for vendor, data in vqc_data.items() if data]
-    if all_vqc_dfs:
-        df_vqc = pd.concat(all_vqc_dfs, ignore_index=True)
-        rename_map = {
-            find_column(df_vqc, ['uid', 'serial']): 'serial_number',
-            find_column(df_vqc, ['status', 'result']): 'vqc_status',
-            find_column(df_vqc, ['reason', 'comments']): 'vqc_reason',
-            find_column(df_vqc, ['PCB']): 'pcb',
-            find_column(df_vqc, ['QC CODE']): 'qc_code',
-            find_column(df_vqc, ['QC PERSON']): 'qc_person'
-        }
-        df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
-        if 'serial_number' in df_vqc.columns:
-            df_vqc.dropna(subset=['serial_number'], inplace=True)
-            df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip().str.upper()
-            if 'vqc_reason' in df_vqc.columns:
-                df_vqc['vqc_reason'] = df_vqc['vqc_reason'].astype(str).str.strip().str.upper()
-            df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'] if col in df_vqc.columns]]
-    else:
-        df_vqc = pd.DataFrame(columns=['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'])
-    
-    df_ft = pd.DataFrame(ft_data)
-    if not df_ft.empty:
+    # Process VQC data
+    df_vqc = pd.DataFrame()
+    if vqc_data:
+        all_vqc_dfs = [pd.DataFrame(data).assign(vendor=vendor) for vendor, data in vqc_data.items() if data]
+        if all_vqc_dfs:
+            df_vqc = pd.concat(all_vqc_dfs, ignore_index=True)
+            rename_map = {
+                find_column(df_vqc, ['uid', 'serial']): 'serial_number',
+                find_column(df_vqc, ['status', 'result']): 'vqc_status',
+                find_column(df_vqc, ['reason', 'comments']): 'vqc_reason',
+                find_column(df_vqc, ['PCB']): 'pcb',
+                find_column(df_vqc, ['QC CODE']): 'qc_code',
+                find_column(df_vqc, ['QC PERSON']): 'qc_person'
+            }
+            df_vqc.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
+            if 'serial_number' in df_vqc.columns:
+                df_vqc.dropna(subset=['serial_number'], inplace=True)
+                df_vqc['serial_number'] = df_vqc['serial_number'].astype(str).str.strip().str.upper()
+                if 'vqc_reason' in df_vqc.columns:
+                    df_vqc['vqc_reason'] = df_vqc['vqc_reason'].astype(str).str.strip().str.upper()
+                df_vqc = df_vqc[[col for col in ['serial_number', 'vendor', 'vqc_status', 'vqc_reason', 'pcb', 'qc_code', 'qc_person'] if col in df_vqc.columns]]
+
+    # Process FT data
+    df_ft = pd.DataFrame()
+    if ft_data:
+        df_ft = pd.DataFrame(ft_data)
         rename_map = {
             find_column(df_ft, ['uid', 'serial']): 'serial_number',
+            find_column(df_ft, ['date', 'timestamp']): 'date',
             find_column(df_ft, ['status', 'test result']): 'ft_status',
-            find_column(df_ft, ['reason', 'comments']): 'ft_reason'
+            find_column(df_ft, ['reason', 'comments']): 'ft_reason',
+            find_column(df_ft, ['vqc status', 'vqc_status']): 'vqc_status',
+            find_column(df_ft, ['vqc reason', 'vqc_reason']): 'vqc_reason'
         }
         df_ft.rename(columns={k: v for k, v in rename_map.items() if k}, inplace=True)
         if 'serial_number' in df_ft.columns:
@@ -191,15 +192,50 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
             df_ft['serial_number'] = df_ft['serial_number'].astype(str).str.strip().str.upper()
             if 'ft_reason' in df_ft.columns:
                 df_ft['ft_reason'] = df_ft['ft_reason'].astype(str).str.strip().str.upper()
-            df_ft = df_ft[[col for col in ['serial_number', 'ft_status', 'ft_reason'] if col in df_ft.columns]]
-    else:
-        df_ft = pd.DataFrame(columns=['serial_number', 'ft_status', 'ft_reason'])
+            if 'vqc_reason' in df_ft.columns:
+                df_ft['vqc_reason'] = df_ft['vqc_reason'].astype(str).str.strip().str.upper()
+            ft_cols = ['serial_number', 'date', 'ft_status', 'ft_reason', 'vqc_status', 'vqc_reason']
+            df_ft = df_ft[[col for col in ft_cols if col in df_ft.columns]]
 
     logs.append("Performing merge...")
-    merged_df = pd.merge(df_main, df_vqc, on=['serial_number', 'vendor'], how='left')
-    if 'serial_number' in merged_df.columns and 'serial_number' in df_ft.columns:
-        merged_df = pd.merge(merged_df, df_ft, on='serial_number', how='left')
-    
+
+    # Merge main and ft data
+    if not df_main.empty:
+        merged_df = pd.merge(df_main, df_ft, on='serial_number', how='outer', suffixes=('_main', ''))
+    else:
+        merged_df = df_ft.copy()
+
+    # Merge with VQC data
+    if not df_vqc.empty:
+        # To handle rows from FT that have no vendor, we need to merge carefully
+        # First, merge where vendor exists
+        merged_with_vendor = merged_df[merged_df['vendor'].notna()]
+        merged_with_vendor = pd.merge(merged_with_vendor, df_vqc, on=['serial_number', 'vendor'], how='left', suffixes=('', '_vqc'))
+
+        # Rows from FT without vendor
+        merged_without_vendor = merged_df[merged_df['vendor'].isna()]
+        
+        merged_df = pd.concat([merged_with_vendor, merged_without_vendor], ignore_index=True)
+
+        # Combine VQC columns
+        if 'vqc_status_vqc' in merged_df.columns:
+            merged_df['vqc_status'] = merged_df['vqc_status_vqc'].combine_first(merged_df['vqc_status'])
+            merged_df.drop(columns=['vqc_status_vqc'], inplace=True)
+        if 'vqc_reason_vqc' in merged_df.columns:
+            merged_df['vqc_reason'] = merged_df['vqc_reason_vqc'].combine_first(merged_df['vqc_reason'])
+            merged_df.drop(columns=['vqc_reason_vqc'], inplace=True)
+
+    # Consolidate date columns
+    if 'date_main' in merged_df.columns and 'date' in merged_df.columns:
+        # Prioritize FT date for historical data (where vendor is NaN)
+        merged_df['date'] = merged_df.apply(
+            lambda row: row['date'] if pd.isna(row['vendor']) else row['date_main'],
+            axis=1
+        )
+        merged_df.drop(columns=['date_main'], inplace=True)
+    elif 'date_main' in merged_df.columns:
+        merged_df.rename(columns={'date_main': 'date'}, inplace=True)
+
     merged_df.fillna('', inplace=True)
     
     initial_count = len(merged_df)
