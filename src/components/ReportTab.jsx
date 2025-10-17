@@ -322,7 +322,7 @@ const ReportTab = () => {
             />
             <StatCard
               title="Overall Yield"
-              value={`${reportData.yield}%`}
+              value={`${parseFloat(reportData.yield).toFixed(2)}%`}
               icon={TrendingUp}
               color="text-purple-600"
               subtitle="acceptance rate"
