@@ -43,7 +43,9 @@ def migrate(current_user):
     """Migrate data from Google Sheets to database with streaming response."""
     
     def generate():
+        log_messages = []
         def log_callback(message):
+            log_messages.append(message)
             yield f"data: {message}\n\n"
 
         # 1. Connect to Google API
@@ -155,7 +157,8 @@ def migrate(current_user):
                 inserted_qty = total_records # Placeholder, using total records
                 batches_sent = num_of_batches
                 
-                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent)
+                log = "\n".join(log_messages)
+                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log)
                 yield from log_callback("Migration history recorded.")
             except Exception as e:
                 yield from log_callback(f"ERROR: Failed to record migration history: {e}")

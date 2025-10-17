@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Loader, RefreshCw } from 'lucide-react';
+import { Play, Loader, RefreshCw, XCircle } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { startMigration } from '../store/thunks/migrationThunks';
 import { fetchMigrationHistory } from '../store/thunks/migrationHistoryThunks';
@@ -13,13 +13,43 @@ const fadeInUp = {
   transition: { duration: 0.3 }
 };
 
+const LogModal = ({ log, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg w-3/4 h-3/4 flex flex-col">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Migration Log</h2>
+          <button onClick={onClose} className="p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/70">
+            <XCircle className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="bg-gray-50 dark:bg-black rounded-lg p-4 flex-grow overflow-auto">
+          <pre className="text-xs font-mono text-gray-600 dark:text-gray-400 whitespace-pre-wrap">
+            {log}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MigrationHistory = () => {
   const dispatch = useDispatch();
   const { history, loading, error } = useSelector((state) => state.migrationHistory);
+  const [selectedLog, setSelectedLog] = useState(null);
 
   useEffect(() => {
     dispatch(fetchMigrationHistory());
   }, [dispatch]);
+
+  const handleViewLog = (log) => {
+    setSelectedLog(log);
+  };
+
+  const closeModal = () => {
+    setSelectedLog(null);
+  };
+
 
   const handleRefresh = () => {
     dispatch(fetchMigrationHistory());
@@ -52,6 +82,7 @@ const MigrationHistory = () => {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Inserted</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Updated</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Batches</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Log</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-black/90 divide-y divide-gray-200 dark:divide-gray-700">
@@ -62,6 +93,14 @@ const MigrationHistory = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.inserted_qty}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.updated_qty}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.batches_sent}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <button 
+                        onClick={() => handleViewLog(item.log)}
+                        className="px-4 py-2 font-semibold text-sm bg-cyan-500 text-white rounded-full shadow-sm hover:bg-cyan-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
+                      >
+                        View Log
+                      </button>
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -69,6 +108,7 @@ const MigrationHistory = () => {
           </div>
         )}
       </div>
+      {selectedLog && <LogModal log={selectedLog} onClose={closeModal} />}
     </motion.div>
   );
 };
