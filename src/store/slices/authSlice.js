@@ -4,8 +4,16 @@ import { supabase } from '../../supabaseClient';
 // Thunks
 export const signUp = createAsyncThunk(
   'auth/signUp',
-  async ({ email, password }, { rejectWithValue }) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+  async ({ email, password, fullName }, { rejectWithValue }) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
     if (error) return rejectWithValue(error.message);
     // By default, Supabase sends a confirmation email. The user is not logged in yet.
     return data.user;

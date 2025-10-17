@@ -78,8 +78,9 @@ const SettingsPanel = ({ isOpen, onClose, isDarkMode, toggleDarkMode, onLoginCli
                 <div className="flex items-center space-x-4">
                   <User className="w-10 h-10 text-gray-500" />
                   <div>
-                    <p className="font-semibold text-lg">{userEmail}</p>
-                    <p className="text-sm text-gray-500">Logged In</p>
+                    <p className="font-semibold text-lg">{session?.user?.user_metadata?.full_name || 'User'}</p>
+                    <p className="text-sm text-gray-500">{userEmail}</p>
+                    <p className="text-xs text-gray-400 capitalize">{session?.user?.role || 'No role assigned'}</p>
                   </div>
                 </div>
                 <motion.button

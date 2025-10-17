@@ -7,6 +7,7 @@ import { Loader } from 'lucide-react';
 const Register = ({ onSwitchToLogin, onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState(''); // Add state for full name
   const dispatch = useDispatch();
   const { loading } = useSelector((state) => state.auth);
 
@@ -14,7 +15,8 @@ const Register = ({ onSwitchToLogin, onClose }) => {
     e.preventDefault();
     if (loading) return;
 
-    dispatch(signUp({ email, password }))
+    // Pass full name to the signUp action
+    dispatch(signUp({ email, password, fullName }))
       .unwrap()
       .then(() => {
         dispatch(showAlert({
@@ -34,6 +36,20 @@ const Register = ({ onSwitchToLogin, onClose }) => {
       <div className="bg-white dark:bg-gray-900 p-8 rounded-lg shadow-lg w-96" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-2xl font-bold mb-4 text-center text-gray-800 dark:text-gray-100">Register</h2>
         <form onSubmit={handleRegister}>
+          <div className="mb-4">
+            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="full-name">
+              Full Name
+            </label>
+            <input
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 leading-tight focus:outline-none focus:shadow-outline"
+              id="full-name"
+              type="text"
+              placeholder="John Doe"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+          </div>
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" htmlFor="email">
               Email
