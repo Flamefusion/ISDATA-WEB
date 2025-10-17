@@ -40,7 +40,10 @@ begin
     create temp table if not exists temp_rejection_records as
     select
         date,
-        upper(trim(vqc_reason)) as reason
+        case
+            when upper(trim(vqc_reason)) in ('PRE NA', 'POST NA') then 'NOT ADVERTISING (WINGLESS PCB)'
+            else upper(trim(vqc_reason))
+        end as reason
     from rings
     where
         date between p_date_from and p_date_to
@@ -51,7 +54,10 @@ begin
     union all
     select
         date,
-        upper(trim(ft_reason)) as reason
+        case
+            when upper(trim(ft_reason)) in ('PRE NA', 'POST NA') then 'NOT ADVERTISING (WINGLESS PCB)'
+            else upper(trim(ft_reason))
+        end as reason
     from rings
     where
         date between p_date_from and p_date_to
