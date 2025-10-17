@@ -6,9 +6,18 @@ BEGIN
     SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json)
     INTO result
     FROM (
-        SELECT id, migration_time, updated_qty, inserted_qty, user_email, batches_sent, log
-        FROM migration_history
-        ORDER BY migration_time DESC
+        SELECT
+            mh.id,
+            mh.migration_time,
+            mh.updated_qty,
+            mh.inserted_qty,
+            mh.user_email,
+            mh.batches_sent,
+            mh.log,
+            u.raw_user_meta_data->>'full_name' as user_name
+        FROM migration_history mh
+        LEFT JOIN auth.users u ON mh.user_email = u.email
+        ORDER BY mh.migration_time DESC
     ) t;
     RETURN result;
 END;
