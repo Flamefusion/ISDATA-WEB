@@ -66,7 +66,8 @@ def migrate(current_user):
             config = {
                 'vendorDataUrl': os.environ.get('VENDOR_DATA_URL'),
                 'vqcDataUrl': os.environ.get('VQC_DATA_URL'),
-                'ftDataUrl': os.environ.get('FT_DATA_URL')
+                'ftDataUrl': os.environ.get('FT_DATA_URL'),
+                'ftDataUrlOld': os.environ.get('FT_DATA_URL_OLD')
             }
 
         except Exception as e:

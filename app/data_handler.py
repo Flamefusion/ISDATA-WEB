@@ -78,16 +78,42 @@ def load_sheet_data(sheet_type, config, gc):
             return 'vqc', vqc_data, logs
         
         elif sheet_type == 'ft':
-            sheet = gc.open_by_url(config['ftDataUrl'])
-            ws = sheet.worksheet('Working')
-            logs.append(f"Loading {sheet_type} data...")
-            all_values = ws.get_all_values()
-            if not all_values:
+            all_data = []
+            
+            # Load historical data if URL is provided
+            if 'ftDataUrlOld' in config and config['ftDataUrlOld']:
+                try:
+                    old_sheet = gc.open_by_url(config['ftDataUrlOld'])
+                    old_ws = old_sheet.worksheet('Working')
+                    logs.append("Loading historical FT data...")
+                    old_all_values = old_ws.get_all_values()
+                    if old_all_values:
+                        old_headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(old_all_values[0])]
+                        old_data = [dict(zip(old_headers, row)) for row in old_all_values[1:]]
+                        all_data.extend(old_data)
+                        logs.append(f"Loaded {len(old_data)} historical FT records")
+                except Exception as e:
+                    logs.append(f"Warning: Could not load historical FT data: {e}")
+
+            # Load current data
+            try:
+                sheet = gc.open_by_url(config['ftDataUrl'])
+                ws = sheet.worksheet('Working')
+                logs.append(f"Loading {sheet_type} data...")
+                all_values = ws.get_all_values()
+                if all_values:
+                    headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
+                    current_data = [dict(zip(headers, row)) for row in all_values[1:]]
+                    all_data.extend(current_data)
+                    logs.append(f"Loaded {len(current_data)} current FT records")
+            except Exception as e:
+                logs.append(f"ERROR loading current FT data: {e}")
+
+            if not all_data:
                 return 'ft', [], logs
-            headers = [str(h).strip() if h else f"Empty_Col_{i}" for i, h in enumerate(all_values[0])]
-            data = [dict(zip(headers, row)) for row in all_values[1:]]
-            logs.append(f"Loaded {len(data)} FT records")
-            return 'ft', data, logs
+
+            logs.append(f"Total loaded {len(all_data)} FT records")
+            return 'ft', all_data, logs
 
     except Exception as e:
         logs.append(f"ERROR loading {sheet_type} data: {e}")
