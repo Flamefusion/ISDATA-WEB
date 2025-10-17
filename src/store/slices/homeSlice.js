@@ -5,6 +5,8 @@ const initialState = {
   loading: false,
   error: null,
   data: {},
+  startDate: null,
+  endDate: null,
 };
 
 const homeSlice = createSlice({
@@ -20,6 +22,8 @@ const homeSlice = createSlice({
       .addCase(fetchHomeSummary.fulfilled, (state, action) => {
         state.loading = false;
         state.data = action.payload;
+        state.startDate = action.meta.arg.startDate;
+        state.endDate = action.meta.arg.endDate;
       })
       .addCase(fetchHomeSummary.rejected, (state, action) => {
         state.loading = false;

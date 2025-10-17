@@ -7,7 +7,7 @@ import { Home, CheckCircle, XCircle, Clock } from 'lucide-react';
 const HomeTab = () => {
   const dispatch = useDispatch();
   const { isDarkMode } = useSelector((state) => state.ui);
-  const { data, loading, error } = useSelector((state) => state.home);
+  const { data, loading, error, startDate: storedStartDate, endDate: storedEndDate } = useSelector((state) => state.home);
   const { session } = useSelector((state) => state.auth);
 
   const [startDate, setStartDate] = useState(new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]);
@@ -15,9 +15,11 @@ const HomeTab = () => {
 
   useEffect(() => {
     if (session) {
-      dispatch(fetchHomeSummary({ startDate, endDate }));
+      if (startDate !== storedStartDate || endDate !== storedEndDate) {
+        dispatch(fetchHomeSummary({ startDate, endDate }));
+      }
     }
-  }, [dispatch, startDate, endDate, session]);
+  }, [dispatch, startDate, endDate, session, storedStartDate, storedEndDate]);
 
   const COLORS = ['#6c63ff', '#4cc9f0', '#ffc658', '#ff8042', '#AF19FF'];
 
