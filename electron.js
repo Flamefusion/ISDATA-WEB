@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const axios = require('axios');
 const { wrapper } = require('axios-cookiejar-support');
 const { CookieJar } = require('tough-cookie');
@@ -137,7 +137,17 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
-  if (backendProcess) backendProcess.kill();
+  if (backendProcess) {
+    if (process.platform === 'win32') {
+      try {
+        execSync(`taskkill /PID ${backendProcess.pid} /F /T`);
+      } catch (e) {
+        console.error(`Failed to kill backend process: ${e}`);
+      }
+    } else {
+      backendProcess.kill();
+    }
+  }
 });
 
 app.on('activate', () => {
