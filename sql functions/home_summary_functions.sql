@@ -7,11 +7,11 @@ BEGIN
         'ringLifecycleData', (
             SELECT json_build_object(
                 'vqc_received', COUNT(CASE WHEN vqc_status IS NOT NULL THEN 1 END),
-                'vqc_closed', COUNT(CASE WHEN vqc_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END),
-                'vqc_pending', COUNT(CASE WHEN vqc_status IS NOT NULL THEN 1 END) - COUNT(CASE WHEN vqc_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END),
+                'vqc_closed', COUNT(CASE WHEN UPPER(vqc_status) IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END),
+                'vqc_pending', COUNT(CASE WHEN vqc_status IS NOT NULL THEN 1 END) - COUNT(CASE WHEN UPPER(vqc_status) IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END),
                 'ft_received', COUNT(CASE WHEN ft_status IS NOT NULL THEN 1 END),
-                'ft_closed', COUNT(CASE WHEN ft_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END),
-                'ft_pending', COUNT(CASE WHEN ft_status IS NOT NULL THEN 1 END) - COUNT(CASE WHEN ft_status IN ('ACCEPTED', 'WABI SABI', 'SCRAP', 'RT CONVERSION') THEN 1 END)
+                'ft_closed', COUNT(CASE WHEN UPPER(ft_status) IN ('ACCEPTED', 'FUNCTIONAL BUT REJECTED', 'FUNCTIONAL REJECTION', 'REJECTED', 'SCRAP', 'SHELL RELATED', 'WABI SABI', 'REWORK') THEN 1 END),
+                'ft_pending', COUNT(CASE WHEN ft_status IS NOT NULL THEN 1 END) - COUNT(CASE WHEN UPPER(ft_status) IN ('ACCEPTED', 'FUNCTIONAL BUT REJECTED', 'FUNCTIONAL REJECTION', 'REJECTED', 'SCRAP', 'SHELL RELATED', 'WABI SABI', 'REWORK') THEN 1 END)
             )
             FROM rings WHERE date BETWEEN p_start_date AND p_end_date
         ),

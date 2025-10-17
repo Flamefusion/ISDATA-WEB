@@ -6,6 +6,7 @@ import { Home, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 const HomeTab = () => {
   const dispatch = useDispatch();
+  const { isDarkMode } = useSelector((state) => state.ui);
   const { data, loading, error } = useSelector((state) => state.home);
   const { session } = useSelector((state) => state.auth);
 
@@ -20,11 +21,11 @@ const HomeTab = () => {
 
   const COLORS = ['#6c63ff', '#4cc9f0', '#ffc658', '#ff8042', '#AF19FF'];
 
-  const CustomTooltip = ({ active, payload, label }) => {
+  const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       return (
         <div className="custom-tooltip bg-white dark:bg-gray-800 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-soft">
-          <p className="label font-semibold">{`${label} : ${payload[0].value}`}</p>
+          <p className="label font-semibold">{`${payload[0].name} : ${payload[0].value}`}</p>
           <p className="desc text-sm">{`Percentage: ${payload[0].payload.percent?.toFixed(2)}%`}</p>
         </div>
       );
@@ -91,33 +92,33 @@ const HomeTab = () => {
         </ChartCard>
 
         <ChartCard title="Rings by Size" titleColor="text-accent-secondary">
-          {data.ringSizeData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.ringSizeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="value" fill="#ffc658" /></BarChart></ResponsiveContainer> : renderNoData()}
+          {data.ringSizeData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.ringSizeData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Bar dataKey="value" fill="#ffc658" /></BarChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
       </div>
 
       <div className="mt-6">
         <ChartCard title="Rejection Reasons" titleColor="text-red-500">
-          {data.rejectionReasonData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.rejectionReasonData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="value" fill="#82ca9d" /></BarChart></ResponsiveContainer> : renderNoData()}
+          {data.rejectionReasonData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.rejectionReasonData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Bar dataKey="value" fill="#82ca9d" /></BarChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <ChartCard title="Rings by SKU" titleColor="text-yellow-500">
-          {data.ringSkuData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.ringSkuData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="value" fill="#ff8042" /></BarChart></ResponsiveContainer> : renderNoData()}
+          {data.ringSkuData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.ringSkuData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Bar dataKey="value" fill="#ff8042" /></BarChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
 
         <ChartCard title="MO Summary" titleColor="text-green-500">
-            {data.moSummaryData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.moSummaryData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Bar dataKey="accepted" stackId="a" fill="#82ca9d" /><Bar dataKey="wabi_sabi" stackId="a" fill="#ffc658" /><Bar dataKey="scrap" stackId="a" fill="#ff8042" /><Bar dataKey="rt_conversion" stackId="a" fill="#AF19FF" /></BarChart></ResponsiveContainer> : renderNoData()}
+            {data.moSummaryData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.moSummaryData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Bar dataKey="accepted" stackId="a" fill="#82ca9d" /><Bar dataKey="wabi_sabi" stackId="a" fill="#ffc658" /><Bar dataKey="scrap" stackId="a" fill="#ff8042" /><Bar dataKey="rt_conversion" stackId="a" fill="#AF19FF" /></BarChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <ChartCard title="Rings by PCB Batch" titleColor="text-blue-500">
-            {data.ringPcbData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><LineChart data={data.ringPcbData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Legend /><Line type="monotone" dataKey="value" stroke="#6c63ff" /></LineChart></ResponsiveContainer> : renderNoData()}
+            {data.ringPcbData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><LineChart data={data.ringPcbData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Line type="monotone" dataKey="value" stroke="#6c63ff" /></LineChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
 
         <ChartCard title="QC Person Yield" titleColor="text-purple-500">
-            {data.qcPersonYieldData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.qcPersonYieldData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis label={{ value: 'Yield %', angle: -90, position: 'insideLeft' }} /><Tooltip /><Legend /><Bar dataKey="yield" fill="#4cc9f0" /></BarChart></ResponsiveContainer> : renderNoData()}
+            {data.qcPersonYieldData?.length > 0 ? <ResponsiveContainer width="100%" height={400}><BarChart data={data.qcPersonYieldData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis label={{ value: 'Yield %', angle: -90, position: 'insideLeft' }} /><Tooltip {...(isDarkMode && { contentStyle: { backgroundColor: '#333', borderColor: '#555' }, itemStyle: { color: '#fff' } })} /><Legend /><Bar dataKey="yield" fill="#4cc9f0" /></BarChart></ResponsiveContainer> : renderNoData()}
         </ChartCard>
       </div>
 
