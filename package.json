@@ -65,7 +65,8 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/frontend.png"
     },
     "directories": {
       "output": "release"
