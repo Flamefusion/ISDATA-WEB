@@ -77,6 +77,9 @@ def export_daily_report(current_user):
             'p_selected_vendor': selected_vendor
         }).execute()
 
+        if isinstance(response.data, dict) and response.data.get('code'):
+            raise Exception(f"Database RPC error: {response.data.get('message', 'No message')}")
+
         results = response.data if response.data else []
         
         if not results:

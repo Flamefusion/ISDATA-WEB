@@ -154,15 +154,15 @@ BEGIN
     RETURN QUERY
     SELECT
         r.date,
-        r.vendor,
-        r.serial_number,
-        r.mo_number,
-        r.sku,
-        r.ring_size,
-        r.vqc_status,
-        r.vqc_reason,
-        r.ft_status,
-        r.ft_reason,
+        r.vendor::text,
+        r.serial_number::text,
+        r.mo_number::text,
+        r.sku::text,
+        r.ring_size::text,
+        r.vqc_status::text,
+        r.vqc_reason::text,
+        r.ft_status::text,
+        r.ft_reason::text,
         CASE
             WHEN (r.vqc_status IS NULL OR r.vqc_status = '') AND (r.ft_status IS NULL OR r.ft_status = '') THEN 'Pending'
             WHEN (r.vqc_status IS NULL OR r.vqc_status = '') AND (r.ft_status IS NOT NULL AND r.ft_status != '') THEN
