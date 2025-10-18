@@ -1,6 +1,7 @@
 -- This file contains the corrected and improved SQL functions for daily reports.
 -- You can run this entire file in your Supabase SQL Editor to update the functions.
 
+DROP FUNCTION get_daily_report_export(date,text);
 -- Corrected Function for /daily_report
 CREATE OR REPLACE FUNCTION get_daily_report(p_selected_date date, p_selected_vendor text)
 RETURNS jsonb AS $$
@@ -19,7 +20,6 @@ BEGIN
                 vqc_reason,
                 ft_status,
                 ft_reason,
-                created_at,
                 CASE
                     WHEN (vqc_status IS NULL OR vqc_status = '') AND (ft_status IS NULL OR ft_status = '') THEN 'Pending'
                     WHEN (vqc_status IS NULL OR vqc_status = '') AND (ft_status IS NOT NULL AND ft_status != '') THEN
@@ -77,16 +77,6 @@ BEGIN
         ),
         ft_reasons_with_total AS (
             SELECT *, SUM(count) OVER () as total_count FROM ft_reasons
-        ),
-        hourly_stats AS (
-            SELECT
-                EXTRACT(HOUR FROM created_at) as hour,
-                COUNT(*) as received,
-                COUNT(*) FILTER (WHERE final_status = 'Accepted') as accepted,
-                COUNT(*) FILTER (WHERE final_status = 'Rejected') as rejected,
-                COUNT(*) FILTER (WHERE final_status = 'Pending') as pending
-            FROM processed_rings
-            GROUP BY 1
         )
         SELECT jsonb_build_object(
             'date', p_selected_date,
@@ -108,13 +98,6 @@ BEGIN
                 'pending', COALESCE((SELECT COUNT(*) FROM rings_on_date WHERE ft_status IS NULL OR ft_status = ''), 0),
                 'rejectionReasons', COALESCE((SELECT jsonb_agg(jsonb_build_object('reason', reason, 'count', count, 'percentage', count * 100.0 / total_count)) FROM ft_reasons_with_total), '[]'::jsonb)
             ),
-            'hourlyData', COALESCE((
-                SELECT jsonb_agg(
-                    jsonb_build_object('hour', to_char(hour::int, 'FM00') || ':00', 'received', received, 'accepted', accepted, 'rejected', rejected, 'pending', pending)
-                    ORDER BY hour
-                )
-                FROM hourly_stats
-            ), '[]'::jsonb),
             'vendorBreakdown', COALESCE((
                 SELECT jsonb_agg(
                     jsonb_build_object(
@@ -147,8 +130,7 @@ RETURNS TABLE(
     "VQC Reason" text,
     "FT Status" text,
     "FT Reason" text,
-    "Overall Status" text,
-    "Created At" timestamp
+    "Overall Status" text
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -171,11 +153,10 @@ BEGIN
                 CASE WHEN UPPER(r.vqc_status) IN ('ACCEPTED', 'PASS') THEN 'Accepted' ELSE 'Rejected' END
             ELSE
                 CASE WHEN UPPER(r.ft_status) IN ('ACCEPTED', 'PASS') THEN 'Accepted' ELSE 'Rejected' END
-        END as overall_status,
-        r.created_at
+        END as overall_status
     FROM rings r
     WHERE r.date = p_selected_date
       AND (p_selected_vendor = 'all' OR r.vendor = p_selected_vendor)
-    ORDER BY r.created_at, r.vendor, r.serial_number;
+    ORDER BY r.vendor, r.serial_number;
 END;
 $$ LANGUAGE plpgsql;
