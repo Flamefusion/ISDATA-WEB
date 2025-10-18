@@ -1,15 +1,9 @@
-// src/components/PreviewTab.jsx - Updated with Real API Integration
+// src/components/PreviewTab.jsx - Updated with Pagination
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Database, RefreshCw, Loader } from 'lucide-react';
+import { Database, RefreshCw, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
-import { 
-  setPreviewData, 
-  setLoading, 
-  setError,
-  clearData
-} from '../store/slices/dataSlice';
-import { showAlert } from '../store/slices/uiSlice';
+import { setCurrentPage } from '../store/slices/dataSlice';
 import { loadPreviewData } from '../store/thunks/dataThunks';
 
 // Animation variants
@@ -22,8 +16,10 @@ const fadeInUp = {
 
 const PreviewTab = () => {
   const dispatch = useDispatch();
-  const { previewData, isLoading, error } = useSelector((state) => state.data);
+  const { previewData, isLoading, error, currentPage, totalPages, totalRecords } = useSelector((state) => state.data);
   
+  const [pageInput, setPageInput] = useState(currentPage);
+
   const desiredColumns = [
     'date', 'vendor', 'mo_number', 'serial_number', 'sku', 'ring_size',
     'pcb', 'qc_code', 'qc_person',
@@ -33,25 +29,46 @@ const PreviewTab = () => {
   const [columns, setColumns] = useState([]);
 
   useEffect(() => {
+    // Load initial data on component mount
+    dispatch(loadPreviewData(1));
+  }, [dispatch]);
+
+  useEffect(() => {
     if (previewData.length > 0) {
       const availableColumns = Object.keys(previewData[0]);
       const filteredAndOrderedColumns = desiredColumns.filter(col => 
         availableColumns.includes(col)
       );
       setColumns(filteredAndOrderedColumns);
+    } else {
+      setColumns([]);
     }
   }, [previewData]);
 
-  const handleLoadPreviewData = () => {
-    dispatch(loadPreviewData());
+  useEffect(() => {
+    setPageInput(currentPage);
+  }, [currentPage]);
+
+  const handleLoadPreviewData = (page) => {
+    dispatch(loadPreviewData(page));
+  };
+
+  const handlePageInputChange = (e) => {
+    setPageInput(e.target.value);
+  };
+
+  const handleGoToPage = (e) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInput, 10);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      handleLoadPreviewData(pageNum);
+    }
   };
 
   const formatCellValue = (value, columnName) => {
     if (value === null || value === undefined || value === '') {
       return '-';
     }
-    
-    // Handle status columns with badges
     if (columnName.includes('status')) {
       const status = String(value).toLowerCase();
       const isPass = ['pass', 'accepted'].includes(status);
@@ -67,8 +84,6 @@ const PreviewTab = () => {
         </span>
       );
     }
-    
-    // Handle reason columns with truncation
     if (columnName.includes('reason')) {
       const reasonText = String(value);
       if (reasonText.length > 30) {
@@ -80,9 +95,52 @@ const PreviewTab = () => {
       }
       return reasonText;
     }
-    
     return String(value);
   };
+
+  const Pagination = () => (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-gray-700 dark:text-gray-400">
+        Showing <span className="font-semibold text-gray-900 dark:text-white">{previewData.length > 0 ? ((currentPage - 1) * 200) + 1 : 0}</span> to <span className="font-semibold text-gray-900 dark:text-white">{Math.min(currentPage * 200, totalRecords)}</span> of <span className="font-semibold text-gray-900 dark:text-white">{totalRecords}</span> Records
+      </span>
+      <div className="flex items-center gap-2">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleLoadPreviewData(currentPage - 1)}
+          disabled={currentPage <= 1 || isLoading}
+          className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </motion.button>
+        
+        <form onSubmit={handleGoToPage} className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Page
+          </span>
+          <input 
+            type="number" 
+            value={pageInput} 
+            onChange={handlePageInputChange}
+            className="w-16 px-2 py-1 text-center rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-indigo-500"
+          />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            of {totalPages}
+          </span>
+        </form>
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => handleLoadPreviewData(currentPage + 1)}
+          disabled={currentPage >= totalPages || isLoading}
+          className="p-2 rounded-md bg-gray-200 dark:bg-gray-700 disabled:opacity-50"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </motion.button>
+      </div>
+    </div>
+  );
 
   return (
     <motion.div {...fadeInUp} className="space-y-6">
@@ -91,12 +149,12 @@ const PreviewTab = () => {
         <motion.button 
           whileHover={{ scale: 1.02 }} 
           whileTap={{ scale: 0.98 }} 
-          onClick={handleLoadPreviewData} 
+          onClick={() => handleLoadPreviewData(currentPage)} 
           disabled={isLoading} 
           className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
         >
           {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-          Refresh Data
+          Refresh Current Page
         </motion.button>
       </div>
 
@@ -137,12 +195,7 @@ const PreviewTab = () => {
           className="bg-white dark:bg-black/90 rounded-2xl border border-gray-200 dark:border-gray-700/30 overflow-hidden shadow-2xl dark:shadow-black/50"
         >
           <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-black dark:to-gray-900/20 border-b border-gray-200 dark:border-gray-700/30">
-            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100">
-              Preview Data ({previewData.length} records)
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">
-              Showing {Math.min(50, previewData.length)} of {previewData.length} records from the database
-            </p>
+            <Pagination />
           </div>
 
           <div className="overflow-auto max-h-96">
@@ -160,7 +213,7 @@ const PreviewTab = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700/30">
-                {previewData.slice(0, 50).map((row, index) => (
+                {previewData.map((row, index) => (
                   <motion.tr 
                     key={row.id || index} 
                     initial={{ opacity: 0 }} 
@@ -182,26 +235,8 @@ const PreviewTab = () => {
             </table>
           </div>
 
-          {/* Table Footer with Stats */}
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700/30">
-            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-              <div className="flex items-center gap-6">
-                <span>Total Records: {previewData.length}</span>
-                {previewData.length > 0 && (
-                  <>
-                    <span>
-                      VQC Pass: {previewData.filter(r => ['pass', 'accepted'].includes(String(r.vqc_status || '').toLowerCase())).length}
-                    </span>
-                    <span>
-                      FT Pass: {previewData.filter(r => ['pass', 'accepted'].includes(String(r.ft_status || '').toLowerCase())).length}
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Last updated: {new Date().toLocaleTimeString()}
-              </div>
-            </div>
+            <Pagination />
           </div>
         </motion.div>
       ) : !isLoading && !error && (

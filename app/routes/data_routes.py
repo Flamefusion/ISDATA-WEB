@@ -26,13 +26,32 @@ def migration_history(current_user):
 @data_bp.route('/data', methods=['GET'])
 @token_required
 def get_data(current_user):
-    """Get all rings data from the database."""
+    """Get paginated rings data from the database."""
     try:
+        page = request.args.get('page', 1, type=int)
+        per_page = 200  # Fixed at 200 as requested
+
         supabase_client = database.supabase
         if supabase_client is None:
             raise Exception("Supabase client is not initialized.")
-        response = supabase_client.from_('rings').select('*').execute()
-        return jsonify(response.data)
+
+        # Get total count
+        # The `count='exact'` parameter provides the total count
+        count_response = supabase_client.from_('rings').select('id', count='exact').execute()
+        total_records = count_response.count
+
+        # Calculate range for pagination
+        start_index = (page - 1) * per_page
+        end_index = start_index + per_page - 1
+
+        # Fetch paginated data
+        response = supabase_client.from_('rings').select('*').order('created_at', desc=True).range(start_index, end_index).execute()
+        
+        return jsonify({
+            'data': response.data,
+            'total': total_records
+        })
+
     except Exception as e:
         current_app.logger.error(f"Error fetching data: {e}")
         return jsonify(error=str(e)), 500

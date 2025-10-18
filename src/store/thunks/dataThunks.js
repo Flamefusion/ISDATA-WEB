@@ -1,38 +1,48 @@
 // src/store/thunks/dataThunks.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
-import { setPreviewData, setLoading, setError } from '../slices/dataSlice';
 import { showAlert } from '../slices/uiSlice';
 
 export const loadPreviewData = createAsyncThunk(
   'data/loadPreviewData',
-  async (_, { dispatch }) => {
-    dispatch(setLoading(true));
+  async (page = 1, { dispatch, getState, rejectWithValue }) => {
     try {
-      const response = await fetch('http://localhost:5000/api/data');
+      const { session } = getState().auth;
+      if (!session || !session.access_token) {
+        return rejectWithValue('Authentication token is missing');
+      }
+
+      const response = await fetch(`http://localhost:5000/api/data?page=${page}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
-      const data = await response.json();
+      const responseData = await response.json();
 
       // Format dates for better display
-      const formattedData = data.map(record => ({
+      const formattedData = responseData.data.map(record => ({
         ...record,
         date: record.date ? new Date(record.date).toLocaleDateString() : '',
         created_at: record.created_at ? new Date(record.created_at).toLocaleString() : '',
         updated_at: record.updated_at ? new Date(record.updated_at).toLocaleString() : '',
       }));
 
-      dispatch(setPreviewData(formattedData));
+      const payload = {
+        data: formattedData,
+        total: responseData.total,
+      };
+      
       dispatch(showAlert({ message: `Loaded ${formattedData.length} records`, type: 'success' }));
-      return formattedData;
+      return payload;
+
     } catch (error) {
-      dispatch(setError(error.message));
       dispatch(showAlert({ message: `Failed to load preview data: ${error.message}`, type: 'error' }));
-      throw error;
-    } finally {
-      dispatch(setLoading(false));
+      return rejectWithValue(error.message);
     }
   }
 );
