@@ -186,6 +186,10 @@ def export_rejection_trends(current_user):
             raise Exception(f"Database RPC error: {response.data.get('message', 'No message')}")
 
         trends_data = response.data
+
+        # The RPC returns a list with a single JSON object, so extract it.
+        if trends_data and isinstance(trends_data, list):
+            trends_data = trends_data[0]
         
         if not trends_data or not trends_data.get('rejectionData'):
             return Response("", mimetype="text/csv")
