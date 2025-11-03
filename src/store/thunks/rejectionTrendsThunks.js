@@ -25,8 +25,7 @@ export const loadVendorsForTrends = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const vendors = await window.api.loadVendorsForTrends();
-      // For this tab, we don't want 'all' vendors, so we filter it out.
-      return vendors.filter(vendor => vendor !== 'all');
+      return vendors;
     } catch (error) {
       console.error('Failed to load vendors for trends tab:', error);
       return rejectWithValue(error.message);
