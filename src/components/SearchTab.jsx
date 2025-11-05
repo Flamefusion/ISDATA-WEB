@@ -148,6 +148,12 @@ const SearchTab = () => {
             selected={searchFilters.qcperson}
             onChange={(selected) => dispatch(updateSearchFilters({ qcperson: selected }))}
           />
+          <MultiSelectMenu 
+            label="Inventory Status"
+            options={filterOptions.inventory_statuses}
+            selected={searchFilters.inventoryStatus}
+            onChange={(selected) => dispatch(updateSearchFilters({ inventoryStatus: selected }))}
+          />
         </div>
 
         <div className="flex gap-4 mt-6">
@@ -238,7 +244,7 @@ const SearchTab = () => {
             <table className="w-full">
               <thead className="bg-gray-100 dark:bg-gray-900 sticky top-0">
                 <tr>
-                  {['serial_number', 'mo_number', 'vendor', 'date', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'ft_status'].map((header) => (
+                  {['serial_number', 'mo_number', 'vendor', 'date', 'pcb', 'qc_code', 'qc_person', 'vqc_status', 'ft_status', 'inventory_status'].map((header) => (
                     <th 
                       key={header} 
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
@@ -305,6 +311,9 @@ const SearchTab = () => {
                       >
                         {row.ft_status}
                       </motion.span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-200">
+                      {row.inventory_status}
                     </td>
                   </motion.tr>
                 ))}

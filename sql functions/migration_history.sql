@@ -6,5 +6,6 @@ CREATE TABLE migration_history (
     inserted_qty INTEGER,
     user_email TEXT,
     batches_sent INTEGER,
-    log TEXT
+    log TEXT,
+    migration_type VARCHAR(50) DEFAULT 'main'
 );

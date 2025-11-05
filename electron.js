@@ -99,6 +99,24 @@ ipcMain.on('migration:start', async (event) => {
   }
 });
 
+ipcMain.on('inventory-migration:start', async (event) => {
+  try {
+    const response = await client.post('http://localhost:5000/api/inventory_migrate', {}, { responseType: 'stream' });
+    response.data.on('data', (chunk) => {
+      const message = chunk.toString();
+      const lines = message.split('\n').filter(line => line.startsWith('data: '));
+      for (const line of lines) {
+        event.sender.send('inventory-migration:log', { type: 'log', message: line.replace('data: ', '') });
+      }
+    });
+    response.data.on('end', () => {
+      event.sender.send('inventory-migration:log', { type: 'complete', message: 'Inventory migration stream complete.' });
+    });
+  } catch (error) {
+    event.sender.send('inventory-migration:log', { type: 'error', message: `Inventory migration failed: ${error.message}` });
+  }
+});
+
 // Reports & Rejection Trends
 ipcMain.handle('rejection:loadData', async (event, data) => {
   const response = await client.post('http://localhost:5000/api/rejection_trends', data);
@@ -118,6 +136,11 @@ ipcMain.handle('rejection:exportTrends', async (event, data) => {
 // Search
 ipcMain.handle('search:loadFilterOptions', async () => {
   const response = await client.get('http://localhost:5000/api/search/filters');
+  return response.data;
+});
+
+ipcMain.handle('db:addInventoryColumn', async () => {
+  const response = await client.post('http://localhost:5000/api/db/add_inventory_column');
   return response.data;
 });
 

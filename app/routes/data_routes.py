@@ -189,6 +189,171 @@ def migrate(current_user):
 
     return Response(generate(), mimetype='text/event-stream')
 
+@data_bp.route('/inventory_migrate', methods=['POST'])
+@token_required
+def inventory_migrate(current_user):
+    """Migrate inventory status data from Google Sheets to database with streaming response."""
+    
+    def generate():
+        log_messages = []
+        def log_callback(message):
+            log_messages.append(message)
+            yield f"data: {message}\n\n"
+
+        try:
+            yield from log_callback("Connecting to Google API for Inventory Migration...")
+            service_account_path = os.environ.get('GOOGLE_SERVICE_ACCOUNT_JSON')
+            inventory_sheet_url = os.environ.get('INVENTORY_SHEET_URL')
+
+            if not service_account_path or not os.path.exists(service_account_path):
+                yield from log_callback(f"ERROR: GOOGLE_SERVICE_ACCOUNT_JSON path is not set or invalid: {service_account_path}")
+                return
+            if not inventory_sheet_url:
+                yield from log_callback("ERROR: INVENTORY_SHEET_URL environment variable is not set.")
+                return
+
+            with open(service_account_path) as f:
+                service_account_info = json.load(f)
+            
+            scopes = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+            creds = Credentials.from_service_account_info(service_account_info, scopes=scopes)
+            gc = gspread.authorize(creds)
+            yield from log_callback("Google API connection successful.")
+
+            # Open the inventory spreadsheet and select the 'Master DATA (consolidated)' worksheet
+            spreadsheet = gc.open_by_url(inventory_sheet_url)
+            worksheet = spreadsheet.worksheet('Master DATA (consolidated)')
+            yield from log_callback("Connected to Inventory Status Google Sheet.")
+
+            # Get all values from the worksheet
+            all_data = worksheet.get_all_values()
+            if not all_data:
+                yield from log_callback("No data found in the inventory sheet.")
+                return
+
+            # Extract box names (headers from column C onwards)
+            box_names = all_data[0][2:] # Assuming first row contains headers, starting from C (index 2)
+            
+            # Process data: serial numbers and their corresponding box names
+            inventory_data = {}
+            for row_index in range(1, len(all_data)): # Start from the second row (index 1)
+                row = all_data[row_index]
+                for col_index in range(2, len(row)): # Start from column C (index 2)
+                    serial_number = row[col_index].strip()
+                    if serial_number: # Only process if serial number is not empty
+                        box_name = box_names[col_index - 2] # Adjust index for box_names
+                        inventory_data[serial_number] = box_name
+            
+            yield from log_callback(f"Processed {len(inventory_data)} unique serial numbers from inventory sheet.")
+
+            if not inventory_data:
+                yield from log_callback("No valid inventory data to migrate.")
+                return
+
+            # Fetch existing serial numbers from the database
+            supabase_client = database.supabase
+            if supabase_client is None:
+                raise Exception("Supabase client is not initialized.")
+            
+            existing_rings_response = supabase_client.from_('rings').select('serial_number').execute()
+            existing_serial_numbers = {item['serial_number'] for item in existing_rings_response.data}
+            yield from log_callback(f"Found {len(existing_serial_numbers)} existing serial numbers in the database.")
+
+            updates = []
+            inserts = []
+
+            for serial_number, box_name in inventory_data.items():
+                if serial_number in existing_serial_numbers:
+                    updates.append({
+                        'serial_number': serial_number,
+                        'inventory_status': box_name
+                    })
+                else:
+                    inserts.append({
+                        'serial_number': serial_number,
+                        'inventory_status': box_name,
+                        # Other fields are left blank/null as per requirement
+                        'date': None, 'mo_number': None, 'vendor': None, 'ring_size': None,
+                        'sku': None, 'pcb': None, 'qc_code': None, 'qc_person': None,
+                        'vqc_status': None, 'vqc_reason': None, 'ft_status': None, 'ft_reason': None
+                    })
+            
+            yield from log_callback(f"Prepared {len(updates)} updates and {len(inserts)} inserts.")
+
+            # Perform updates and inserts in batches
+            batch_size = 10000
+            max_retries = 3
+            retry_delay = 5
+
+            # Upsert updates
+            if updates:
+                total_updates = len(updates)
+                num_of_update_batches = (total_updates + batch_size - 1) // batch_size
+                yield from log_callback(f"Starting to update {total_updates} records in batches...")
+                for i in range(0, total_updates, batch_size):
+                    batch = updates[i:i + batch_size]
+                    current_batch_num = i//batch_size + 1
+                    for attempt in range(max_retries):
+                        try:
+                            yield from log_callback(f"Updating batch {current_batch_num}/{num_of_update_batches} (attempt {attempt + 1}/{max_retries})...")
+                            supabase_client.from_('rings').upsert(batch, on_conflict='serial_number').execute()
+                            yield from log_callback(f"Update batch {current_batch_num} successful.")
+                            break
+                        except Exception as e:
+                            yield from log_callback(f"ERROR in update batch {current_batch_num}: {e}")
+                            if attempt < max_retries - 1:
+                                yield from log_callback(f"Retrying in {retry_delay} seconds...")
+                                time.sleep(retry_delay)
+                            else:
+                                yield from log_callback(f"Update batch {current_batch_num} failed after {max_retries} attempts. Aborting inventory migration.")
+                                raise e
+                yield from log_callback("All updates completed successfully.")
+
+            # Insert new records
+            if inserts:
+                total_inserts = len(inserts)
+                num_of_insert_batches = (total_inserts + batch_size - 1) // batch_size
+                yield from log_callback(f"Starting to insert {total_inserts} new records in batches...")
+                for i in range(0, total_inserts, batch_size):
+                    batch = inserts[i:i + batch_size]
+                    current_batch_num = i//batch_size + 1
+                    for attempt in range(max_retries):
+                        try:
+                            yield from log_callback(f"Inserting batch {current_batch_num}/{num_of_insert_batches} (attempt {attempt + 1}/{max_retries})...")
+                            supabase_client.from_('rings').insert(batch).execute()
+                            yield from log_callback(f"Insert batch {current_batch_num} successful.")
+                            break
+                        except Exception as e:
+                            yield from log_callback(f"ERROR in insert batch {current_batch_num}: {e}")
+                            if attempt < max_retries - 1:
+                                yield from log_callback(f"Retrying in {retry_delay} seconds...")
+                                time.sleep(retry_delay)
+                            else:
+                                yield from log_callback(f"Insert batch {current_batch_num} failed after {max_retries} attempts. Aborting inventory migration.")
+                                raise e
+                yield from log_callback("All inserts completed successfully.")
+
+            # Record migration history
+            try:
+                user_email = current_user.email
+                updated_qty = len(updates)
+                inserted_qty = len(inserts)
+                batches_sent = num_of_update_batches + num_of_insert_batches
+                log = "\n".join(log_messages)
+                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log, migration_type='inventory_status')
+                yield from log_callback("Inventory migration history recorded.")
+            except Exception as e:
+                yield from log_callback(f"ERROR: Failed to record inventory migration history: {e}")
+
+            yield from log_callback("Inventory migration completed successfully!")
+
+        except Exception as e:
+            yield from log_callback(f"ERROR: Inventory migration failed: {e}")
+            current_app.logger.error(f"Inventory migration failed: {e}")
+            current_app.logger.error(traceback.format_exc())
+
+    return Response(generate(), mimetype='text/event-stream')
+
 @data_bp.route('/test_sheets_connection', methods=['POST'])
 @token_required
 def test_sheets_connection_endpoint(current_user):

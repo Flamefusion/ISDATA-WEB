@@ -9,6 +9,7 @@ import uiReducer from './slices/uiSlice.js';
 import homeReducer from './slices/homeSlice.js';
 import authReducer from './slices/authSlice.js';
 import migrationHistoryReducer from './slices/migrationHistorySlice.js';
+import inventoryMigrationReducer from './slices/inventoryMigrationSlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -22,6 +23,7 @@ export const store = configureStore({
     home: homeReducer,
     auth: authReducer,
     migrationHistory: migrationHistoryReducer,
+    inventoryMigration: inventoryMigrationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

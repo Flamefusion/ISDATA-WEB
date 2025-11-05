@@ -70,3 +70,20 @@ def clear_database_endpoint(current_user):
         current_app.logger.error(f"Database clearing failed: {e}")
         current_app.logger.error(traceback.format_exc())
         return jsonify(status="error", message=f"Database clearing failed: {e}"), 500
+
+@db_bp.route('/db/add_inventory_column', methods=['POST'])
+@token_required
+def add_inventory_column_endpoint(current_user):
+    """Endpoint to add the inventory_status column to the 'rings' table."""
+    try:
+        supabase_client = database.supabase
+        if supabase_client is None:
+            raise Exception("Supabase client is not initialized.")
+        with open('sql functions/add_inventory_status_column.sql', 'r') as f:
+            add_inventory_column_sql = f.read()
+        supabase_client.rpc('exec', {'sql': add_inventory_column_sql}).execute()
+        return jsonify(status="success", message="Column 'inventory_status' added to 'rings' table.")
+    except Exception as e:
+        current_app.logger.error(f"Failed to add inventory column: {e}")
+        current_app.logger.error(traceback.format_exc())
+        return jsonify(status="error", message=f"Failed to add inventory column: {e}"), 500

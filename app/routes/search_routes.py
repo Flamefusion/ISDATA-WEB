@@ -18,6 +18,7 @@ def _prepare_filters(filters):
         'p_qcpersons': filters.get('qcperson'),
         'p_vqc_statuses': filters.get('vqcStatus'),
         'p_ft_statuses': filters.get('ftStatus'),
+        'p_inventory_statuses': filters.get('inventoryStatus'),
         'p_rejection_reasons': filters.get('rejectionReason'),
         'p_limit': filters.get('limit', 100000)
     }
@@ -58,7 +59,7 @@ def get_search_filters(current_user):
         supabase_client = database.supabase
         if supabase_client is None:
             raise Exception("Supabase client is not initialized.")
-        response = supabase_client.rpc('get_search_filters', {}).execute()
+        response = supabase_client.rpc('get_all_search_filters', {}).execute()
         
         # The RPC function returns a list with a single JSON object
         if response.data and isinstance(response.data, list) and len(response.data) > 0:

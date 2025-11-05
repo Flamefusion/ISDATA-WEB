@@ -24,7 +24,7 @@ def get_migration_history():
         print(f"Error fetching migration history: {e}")
         raise
 
-def add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log):
+def add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log, migration_type='main'):
     """Adds a new record to the migration history."""
     try:
         supabase_client = database.supabase
@@ -36,7 +36,8 @@ def add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, l
             'inserted_qty': inserted_qty,
             'user_email': user_email,
             'batches_sent': batches_sent,
-            'log': log
+            'log': log,
+            'migration_type': migration_type
         }).execute()
         
         # Optional: Check for errors in the response

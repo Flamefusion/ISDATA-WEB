@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Play, Loader, RefreshCw, XCircle } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { startMigration } from '../store/thunks/migrationThunks';
+import { startInventoryMigration } from '../store/thunks/inventoryMigrationThunks';
 import { fetchMigrationHistory } from '../store/thunks/migrationHistoryThunks';
 
 // Animation variants
@@ -79,6 +80,7 @@ const MigrationHistory = () => {
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User Name</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Inserted</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Updated</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Batches</th>
@@ -90,6 +92,7 @@ const MigrationHistory = () => {
                   <motion.tr key={item.id} {...fadeInUp}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{new Date(item.migration_time).toLocaleString()}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.user_name || item.user_email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.migration_type || 'main'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.inserted_qty}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.updated_qty}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.batches_sent}</td>
@@ -116,9 +119,14 @@ const MigrationHistory = () => {
 const MigrationTab = () => {
   const dispatch = useDispatch();
   const { migrationProgress, migrationLog, isRunning, error } = useSelector((state) => state.migration);
+  const { inventoryMigrationProgress, inventoryMigrationLog, isInventoryMigrationRunning, inventoryMigrationError } = useSelector((state) => state.inventoryMigration);
 
   const handleStartMigration = () => {
     dispatch(startMigration());
+  };
+
+  const handleStartInventoryMigration = () => {
+    dispatch(startInventoryMigration());
   };
 
   return (
@@ -136,7 +144,7 @@ const MigrationTab = () => {
             <Loader className="w-5 h-5 animate-spin" /> : 
             <Play className="w-5 h-5" />
           }
-          {isRunning ? 'Migration Running...' : 'Start Migration'}
+          {isRunning ? 'Migration Running...' : 'Start Main Migration'}
         </motion.button>
       </div>
 
@@ -149,7 +157,7 @@ const MigrationTab = () => {
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Migration Progress
+                Main Migration Progress
               </span>
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {Math.round(migrationProgress)}%
@@ -167,7 +175,7 @@ const MigrationTab = () => {
 
           <div className="bg-gray-50 dark:bg-black rounded-lg p-4 max-h-64 overflow-auto">
             <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              Migration Log:
+              Main Migration Log:
             </h4>
             {migrationLog.map((log, index) => (
               <motion.div 
@@ -206,7 +214,7 @@ const MigrationTab = () => {
           className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30"
         >
           <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
-            Migration Process
+            Main Migration Process
           </h4>
           <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
             <div className="flex items-start gap-3">
@@ -231,6 +239,120 @@ const MigrationTab = () => {
               <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
               <div>
                 <strong>Database Update:</strong> Existing records will be updated and new records will be inserted using high-performance bulk operations.
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      <div className="mt-10 flex justify-between items-center">
+        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Inventory Migration</h2>
+        <motion.button 
+          whileHover={{ scale: 1.02 }} 
+          whileTap={{ scale: 0.98 }} 
+          onClick={handleStartInventoryMigration} 
+          disabled={isInventoryMigrationRunning} 
+          className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl font-semibold transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
+        >
+          {isInventoryMigrationRunning ? 
+            <Loader className="w-5 h-5 animate-spin" /> : 
+            <Play className="w-5 h-5" />
+          }
+          {isInventoryMigrationRunning ? 'Inventory Migration Running...' : 'Start Inventory Migration'}
+        </motion.button>
+      </div>
+
+      {inventoryMigrationLog.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          className="bg-white dark:bg-black/90 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30 shadow-2xl dark:shadow-black/50"
+        >
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Inventory Migration Progress
+              </span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {Math.round(inventoryMigrationProgress)}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <motion.div 
+                className="bg-gradient-to-r from-purple-400 to-pink-500 h-3 rounded-full" 
+                initial={{ width: 0 }} 
+                animate={{ width: `${inventoryMigrationProgress}%` }} 
+                transition={{ duration: 0.5 }} 
+              />
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-black rounded-lg p-4 max-h-64 overflow-auto">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Inventory Migration Log:
+            </h4>
+            {inventoryMigrationLog.map((log, index) => (
+              <motion.div 
+                key={index} 
+                initial={{ opacity: 0, x: -20 }} 
+                animate={{ opacity: 1, x: 0 }} 
+                className={`text-xs mb-1 font-mono ${
+                  log.message.includes('ERROR') ? 'text-red-600 dark:text-red-400' :
+                  log.message.includes('successfully') ? 'text-green-600 dark:text-green-400' :
+                  'text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <span className="text-blue-500">[{log.timestamp}]</span> {log.message}
+              </motion.div>
+            ))}
+          </div>
+
+          {inventoryMigrationError && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="mt-4 p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-lg"
+            >
+              <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                Error: {inventoryMigrationError}
+              </p>
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+
+      {inventoryMigrationLog.length === 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-6 border border-gray-200 dark:border-gray-700/30"
+        >
+          <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+            Inventory Migration Process
+          </h4>
+          <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+              <div>
+                <strong>Connect to Google Sheets:</strong> The system will authenticate using your service account credentials and connect to the configured Google Sheets.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+              <div>
+                <strong>Load Data:</strong> Inventory data will be loaded from the 'Master DATA (consolidated)' sheet.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+              <div>
+                <strong>Process & Match:</strong> Serial numbers will be extracted, matched against existing database records, and new records will be prepared for unmatched serial numbers.
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">4</div>
+              <div>
+                <strong>Database Update:</strong> Existing records will be updated with inventory status, and new records will be inserted using high-performance bulk operations.
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 DROP FUNCTION IF EXISTS search_rings(
-    text[], text[], date, date, text[], text[], text[], text[], text[], text[], text[], integer
+    text[], text[], date, date, text[], text[], text[], text[], text[], text[], text[], text[], integer
 );
 
 CREATE OR REPLACE FUNCTION search_rings(
@@ -14,6 +14,7 @@ CREATE OR REPLACE FUNCTION search_rings(
     p_vqc_statuses text[] DEFAULT NULL,
     p_ft_statuses text[] DEFAULT NULL,
     p_rejection_reasons text[] DEFAULT NULL,
+    p_inventory_statuses text[] DEFAULT NULL,
     p_limit integer DEFAULT NULL -- New parameter for limit
 )
 RETURNS SETOF rings AS $$
@@ -31,6 +32,7 @@ BEGIN
         (p_qcpersons IS NULL OR qc_person = ANY(p_qcpersons)) AND
         (p_vqc_statuses IS NULL OR vqc_status = ANY(p_vqc_statuses)) AND
         (p_ft_statuses IS NULL OR ft_status = ANY(p_ft_statuses)) AND
+        (p_inventory_statuses IS NULL OR inventory_status = ANY(p_inventory_statuses)) AND
         (p_rejection_reasons IS NULL OR (vqc_reason = ANY(p_rejection_reasons) OR ft_reason = ANY(p_rejection_reasons)))
     ORDER BY date DESC
     LIMIT COALESCE(p_limit, 100000); -- Apply limit if provided, otherwise default to 5000

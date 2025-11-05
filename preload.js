@@ -18,11 +18,15 @@ contextBridge.exposeInMainWorld('api', {
   startMigration: (data) => ipcRenderer.send('migration:start', data),
   onMigrationLog: (callback) => ipcRenderer.on('migration:log', (event, message) => callback(message)),
   removeMigrationLogListener: () => ipcRenderer.removeAllListeners('migration:log'),
+  startInventoryMigration: (data) => ipcRenderer.send('inventory-migration:start', data),
+  onInventoryMigrationLog: (callback) => ipcRenderer.on('inventory-migration:log', (event, message) => callback(message)),
+  removeInventoryMigrationLogListener: () => ipcRenderer.removeAllListeners('inventory-migration:log'),
   loadRejectionData: (data) => ipcRenderer.invoke('rejection:loadData', data),
   loadVendorsForTrends: () => ipcRenderer.invoke('rejection:loadVendors'),
   exportRejectionTrends: (data) => ipcRenderer.invoke('rejection:exportTrends', data),
   loadSearchFilterOptions: () => ipcRenderer.invoke('search:loadFilterOptions'),
   performSearch: (data) => ipcRenderer.invoke('search:performSearch', data),
   exportSearchResults: (data) => ipcRenderer.invoke('search:exportSearchResults', data),
+  addInventoryColumn: () => ipcRenderer.invoke('db:addInventoryColumn'),
   // You can add other functions here for other backend calls
 });

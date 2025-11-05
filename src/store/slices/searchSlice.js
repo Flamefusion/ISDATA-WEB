@@ -12,6 +12,7 @@ const initialSearchFilters = {
   qcperson: [],
   vqcStatus: [],
   ftStatus: [],
+  inventoryStatus: [],
   rejectionReason: [],
 };
 
@@ -25,6 +26,7 @@ const initialState = {
     qcpersons: [],
     vqc_statuses: [],
     ft_statuses: [],
+    inventory_statuses: [],
     reasons: [],
   },
   isLoading: false,
