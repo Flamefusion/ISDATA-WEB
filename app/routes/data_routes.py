@@ -349,8 +349,6 @@ def inventory_migrate(current_user):
 
         except Exception as e:
             yield from log_callback(f"ERROR: Inventory migration failed: {e}")
-            current_app.logger.error(f"Inventory migration failed: {e}")
-            current_app.logger.error(traceback.format_exc())
 
     return Response(generate(), mimetype='text/event-stream')
 

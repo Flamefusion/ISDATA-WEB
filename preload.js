@@ -24,6 +24,8 @@ contextBridge.exposeInMainWorld('api', {
   loadRejectionData: (data) => ipcRenderer.invoke('rejection:loadData', data),
   loadVendorsForTrends: () => ipcRenderer.invoke('rejection:loadVendors'),
   exportRejectionTrends: (data) => ipcRenderer.invoke('rejection:exportTrends', data),
+  fetchInventoryStatus: () => ipcRenderer.invoke('inventory:fetchStatus'),
+  exportInventoryStatus: () => ipcRenderer.invoke('inventory:exportStatus'),
   loadSearchFilterOptions: () => ipcRenderer.invoke('search:loadFilterOptions'),
   performSearch: (data) => ipcRenderer.invoke('search:performSearch', data),
   exportSearchResults: (data) => ipcRenderer.invoke('search:exportSearchResults', data),

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home, Loader } from 'lucide-react';
+import { Settings, Database, FileText, Search, TrendingDown, BarChart3, RefreshCw, Home, Loader, LayoutGrid } from 'lucide-react';
 import { Routes, Route, useLocation, Link } from 'react-router-dom';
 
 import { store } from './store/store';
@@ -24,6 +24,7 @@ const PreviewTab = React.lazy(() => import('./components/PreviewTab'));
 const ReportTab = React.lazy(() => import('./components/ReportTab'));
 const SearchTab = React.lazy(() => import('./components/SearchTab'));
 const RejectionTrendsTab = React.lazy(() => import('./components/RejectionTrendsTab'));
+const InventoryStatusTab = React.lazy(() => import('./components/InventoryStatusTab'));
 import SettingsPanel from './components/SettingsPanel';
 import CustomAlert from './components/CustomAlert';
 import Login from './components/Login';
@@ -84,6 +85,7 @@ const AppContent = () => {
     { id: 'report', path: '/report', label: 'Report', icon: FileText, component: ReportTab },
     { id: 'search', path: '/search', label: 'Search', icon: Search, component: SearchTab },
     { id: 'rejectionTrends', path: '/rejection-trends', label: 'Rejection Trends', icon: TrendingDown, component: RejectionTrendsTab },
+    { id: 'inventoryStatus', path: '/inventory-status', label: 'Inventory Status', icon: LayoutGrid, component: InventoryStatusTab },
   ];
 
   return (

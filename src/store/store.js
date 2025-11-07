@@ -10,6 +10,7 @@ import homeReducer from './slices/homeSlice.js';
 import authReducer from './slices/authSlice.js';
 import migrationHistoryReducer from './slices/migrationHistorySlice.js';
 import inventoryMigrationReducer from './slices/inventoryMigrationSlice.js';
+import inventoryStatusReducer from './slices/inventoryStatusSlice.js';
 
 export const store = configureStore({
   reducer: {
@@ -24,6 +25,7 @@ export const store = configureStore({
     auth: authReducer,
     migrationHistory: migrationHistoryReducer,
     inventoryMigration: inventoryMigrationReducer,
+    inventoryStatus: inventoryStatusReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

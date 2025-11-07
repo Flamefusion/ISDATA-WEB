@@ -133,6 +133,17 @@ ipcMain.handle('rejection:exportTrends', async (event, data) => {
     return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: `rejection_trends.csv` };
 });
 
+// Inventory Status
+ipcMain.handle('inventory:fetchStatus', async () => {
+  const response = await client.get('http://localhost:5000/api/inventory_status');
+  return response.data;
+});
+
+ipcMain.handle('inventory:exportStatus', async () => {
+    const response = await client.get('http://localhost:5000/api/inventory_status/export', { responseType: 'arraybuffer' });
+    return { blob: { data: response.data, type: response.headers['content-type'] }, fileName: 'inventory_status.csv' };
+});
+
 // Search
 ipcMain.handle('search:loadFilterOptions', async () => {
   const response = await client.get('http://localhost:5000/api/search/filters');

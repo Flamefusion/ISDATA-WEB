@@ -37,6 +37,7 @@ def create_app():
     from app.routes.report_routes import report_bp
     from app.routes.home_routes import home_bp
     from app.routes.auth_routes import auth_bp
+    from app.routes.inventory_routes import inventory_bp
 
     app.register_blueprint(db_bp, url_prefix='/api')
     app.register_blueprint(data_bp, url_prefix='/api')
@@ -44,6 +45,7 @@ def create_app():
     app.register_blueprint(report_bp, url_prefix='/api')
     app.register_blueprint(home_bp, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/api')
+    app.register_blueprint(inventory_bp, url_prefix='/api')
 
     from app import database
     with app.app_context():
