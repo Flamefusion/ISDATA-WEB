@@ -3,8 +3,8 @@ DROP FUNCTION IF EXISTS search_rings(
 );
 
 CREATE OR REPLACE FUNCTION search_rings(
-    p_serial_numbers text[] DEFAULT NULL,
-    p_mo_numbers text[] DEFAULT NULL,
+    p_serial_numbers jsonb DEFAULT NULL,
+    p_mo_numbers jsonb DEFAULT NULL,
     p_date_from date DEFAULT NULL,
     p_date_to date DEFAULT NULL,
     p_vendors text[] DEFAULT NULL,
@@ -15,15 +15,26 @@ CREATE OR REPLACE FUNCTION search_rings(
     p_ft_statuses text[] DEFAULT NULL,
     p_rejection_reasons text[] DEFAULT NULL,
     p_inventory_statuses text[] DEFAULT NULL,
-    p_limit integer DEFAULT NULL -- New parameter for limit
+    p_limit integer DEFAULT NULL
 )
 RETURNS SETOF rings AS $$
+DECLARE
+    v_serial_numbers text[];
+    v_mo_numbers text[];
 BEGIN
+    -- Convert jsonb arrays to text arrays
+    IF p_serial_numbers IS NOT NULL THEN
+        SELECT array_agg(upper(elem::text)) INTO v_serial_numbers FROM jsonb_array_elements_text(p_serial_numbers) elem;
+    END IF;
+    IF p_mo_numbers IS NOT NULL THEN
+        SELECT array_agg(upper(elem::text)) INTO v_mo_numbers FROM jsonb_array_elements_text(p_mo_numbers) elem;
+    END IF;
+
     RETURN QUERY
     SELECT * FROM rings
     WHERE
-        (p_serial_numbers IS NULL OR UPPER(serial_number) = ANY(p_serial_numbers)) AND
-        (p_mo_numbers IS NULL OR UPPER(mo_number) = ANY(p_mo_numbers)) AND
+        (v_serial_numbers IS NULL OR UPPER(serial_number) = ANY(v_serial_numbers)) AND
+        (v_mo_numbers IS NULL OR UPPER(mo_number) = ANY(v_mo_numbers)) AND
         (p_date_from IS NULL OR date >= p_date_from) AND
         (p_date_to IS NULL OR date <= p_date_to) AND
         (p_vendors IS NULL OR vendor = ANY(p_vendors)) AND
@@ -35,6 +46,6 @@ BEGIN
         (p_inventory_statuses IS NULL OR inventory_status = ANY(p_inventory_statuses)) AND
         (p_rejection_reasons IS NULL OR (vqc_reason = ANY(p_rejection_reasons) OR ft_reason = ANY(p_rejection_reasons)))
     ORDER BY date DESC
-    LIMIT COALESCE(p_limit, 100000); -- Apply limit if provided, otherwise default to 5000
+    LIMIT COALESCE(p_limit, 100000);
 END;
 $$ LANGUAGE plpgsql;

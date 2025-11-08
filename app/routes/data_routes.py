@@ -284,6 +284,8 @@ def inventory_migrate(current_user):
             batch_size = 10000
             max_retries = 3
             retry_delay = 5
+            num_of_update_batches = 0
+            num_of_insert_batches = 0
 
             # Upsert updates
             if updates:
@@ -340,7 +342,7 @@ def inventory_migrate(current_user):
                 inserted_qty = len(inserts)
                 batches_sent = num_of_update_batches + num_of_insert_batches
                 log = "\n".join(log_messages)
-                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log, migration_type='inventory_status')
+                add_migration_history(updated_qty, inserted_qty, user_email, batches_sent, log, migration_type='inventory')
                 yield from log_callback("Inventory migration history recorded.")
             except Exception as e:
                 yield from log_callback(f"ERROR: Failed to record inventory migration history: {e}")
