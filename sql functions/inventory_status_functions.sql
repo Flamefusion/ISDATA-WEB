@@ -28,7 +28,7 @@ BEGIN
         'boxes', '[]'::jsonb
     ));
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
 
 -- Function to get inventory status for export
 CREATE OR REPLACE FUNCTION get_inventory_status_export()
@@ -45,4 +45,4 @@ BEGIN
     WHERE r.inventory_status IS NOT NULL AND r.inventory_status != ''
     ORDER BY r.inventory_status, r.serial_number;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public;
