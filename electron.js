@@ -81,9 +81,9 @@ ipcMain.handle('db:clear', async (event, data) => {
 });
 
 // Migration
-ipcMain.on('migration:start', async (event) => {
+ipcMain.on('migration:start', async (event, { includeHistoricalData }) => {
   try {
-    const response = await client.post('http://localhost:5000/api/migrate', {}, { responseType: 'stream' });
+    const response = await client.post('http://localhost:5000/api/migrate', { include_historical_data: includeHistoricalData }, { responseType: 'stream' });
     response.data.on('data', (chunk) => {
       const message = chunk.toString();
       const lines = message.split('\n').filter(line => line.startsWith('data: '));

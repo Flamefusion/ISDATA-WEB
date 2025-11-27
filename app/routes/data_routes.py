@@ -61,6 +61,9 @@ def get_data(current_user):
 def migrate(current_user):
     """Migrate data from Google Sheets to database with streaming response."""
     
+    data = request.get_json()
+    include_historical_data = data.get('include_historical_data', False)
+
     def generate():
         log_messages = []
         def log_callback(message):
@@ -88,8 +91,10 @@ def migrate(current_user):
                 'vendorDataUrl': os.environ.get('VENDOR_DATA_URL'),
                 'vqcDataUrl': os.environ.get('VQC_DATA_URL'),
                 'ftDataUrl': os.environ.get('FT_DATA_URL'),
-                'ftDataUrlOld': os.environ.get('FT_DATA_URL_OLD')
             }
+            if include_historical_data:
+                config['ftDataUrlOld'] = os.environ.get('FT_DATA_URL_OLD')
+                yield from log_callback("Including historical data in migration.")
 
         except Exception as e:
             yield from log_callback(f"ERROR: Google API connection failed: {e}")

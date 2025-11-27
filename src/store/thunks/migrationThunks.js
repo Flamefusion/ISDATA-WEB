@@ -11,7 +11,7 @@ import { showAlert } from '../slices/uiSlice';
 
 export const startMigration = createAsyncThunk(
   'migration/startMigration',
-  async (_, { dispatch }) => { // Config is no longer needed
+  async ({ includeHistoricalData }, { dispatch }) => { // Destructure includeHistoricalData
     dispatch(clearMigrationLog());
     dispatch(setMigrationRunning(true));
     dispatch(addMigrationLog('Starting migration process...'));
@@ -57,8 +57,8 @@ export const startMigration = createAsyncThunk(
         }
       });
 
-      // No longer pass config
-      window.api.startMigration();
+      // Pass includeHistoricalData to the main process
+      window.api.startMigration({ includeHistoricalData });
     });
   }
 );

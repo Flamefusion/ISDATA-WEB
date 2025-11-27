@@ -189,7 +189,7 @@ def merge_ring_data_fast(step7_data, vqc_data, ft_data):
             rename_map = {
                 find_column(df_vqc, ['uid', 'serial']): 'serial_number',
                 find_column(df_vqc, ['status', 'result']): 'vqc_status',
-                find_column(df_vqc, ['reason', 'comments']): 'vqc_reason',
+                find_column(df_vqc, ['reason', 'comments', 'vqc reason', 'vqc_reason', 'reason for failure']): 'vqc_reason',
                 find_column(df_vqc, ['PCB']): 'pcb',
                 find_column(df_vqc, ['QC CODE']): 'qc_code',
                 find_column(df_vqc, ['QC PERSON']): 'qc_person'
