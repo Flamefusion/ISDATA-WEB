@@ -59,7 +59,7 @@ def get_search_filters(current_user):
         supabase_client = database.supabase
         if supabase_client is None:
             raise Exception("Supabase client is not initialized.")
-        response = supabase_client.rpc('get_all_search_filters', {}).execute()
+        response = supabase_client.rpc('get_all_search_filters_optimized', {}).execute()
         
         # The RPC function returns a list with a single JSON object
         if response.data and isinstance(response.data, list) and len(response.data) > 0:
