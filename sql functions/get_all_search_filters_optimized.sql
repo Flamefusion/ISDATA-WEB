@@ -16,17 +16,17 @@ BEGIN
     INTO result
     FROM (
         SELECT
-            json_agg(DISTINCT vendor) FILTER (WHERE vendor IS NOT NULL) as vendors,
-            json_agg(DISTINCT pcb) FILTER (WHERE pcb IS NOT NULL) as pcbs,
-            json_agg(DISTINCT qc_code) FILTER (WHERE qc_code IS NOT NULL) as qccodes,
-            json_agg(DISTINCT qc_person) FILTER (WHERE qc_person IS NOT NULL) as qcpersons,
-            json_agg(DISTINCT vqc_status) FILTER (WHERE vqc_status IS NOT NULL) as vqc_statuses,
-            json_agg(DISTINCT ft_status) FILTER (WHERE ft_status IS NOT NULL) as ft_statuses,
-            json_agg(DISTINCT inventory_status) FILTER (WHERE inventory_status IS NOT NULL) as inventory_statuses
+            COALESCE(json_agg(DISTINCT vendor) FILTER (WHERE vendor IS NOT NULL), '[]'::json) as vendors,
+            COALESCE(json_agg(DISTINCT pcb) FILTER (WHERE pcb IS NOT NULL), '[]'::json) as pcbs,
+            COALESCE(json_agg(DISTINCT qc_code) FILTER (WHERE qc_code IS NOT NULL), '[]'::json) as qccodes,
+            COALESCE(json_agg(DISTINCT qc_person) FILTER (WHERE qc_person IS NOT NULL), '[]'::json) as qcpersons,
+            COALESCE(json_agg(DISTINCT vqc_status) FILTER (WHERE vqc_status IS NOT NULL), '[]'::json) as vqc_statuses,
+            COALESCE(json_agg(DISTINCT ft_status) FILTER (WHERE ft_status IS NOT NULL), '[]'::json) as ft_statuses,
+            COALESCE(json_agg(DISTINCT inventory_status) FILTER (WHERE inventory_status IS NOT NULL), '[]'::json) as inventory_statuses
         FROM rings
     ) AS aggregated_data,
     (
-        SELECT json_agg(DISTINCT reason) as reasons
+        SELECT COALESCE(json_agg(DISTINCT reason), '[]'::json) as reasons
         FROM (
             SELECT vqc_reason AS reason FROM rings WHERE vqc_reason IS NOT NULL
             UNION
