@@ -1,6 +1,5 @@
-DROP FUNCTION IF EXISTS search_rings(
-    text[], text[], date, date, text[], text[], text[], text[], text[], text[], text[], text[], integer
-);
+DROP FUNCTION IF EXISTS search_rings(jsonb, jsonb, date, date, text[], text[], text[], text[], text[], text[], text[], integer);
+DROP FUNCTION IF EXISTS search_rings(jsonb, jsonb, date, date, text[], text[], text[], text[], text[], text[], text[], text[], integer);
 
 CREATE OR REPLACE FUNCTION search_rings(
     p_serial_numbers jsonb DEFAULT NULL,
